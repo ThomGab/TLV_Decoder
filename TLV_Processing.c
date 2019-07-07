@@ -1,0 +1,423 @@
+#define _CRT_SECURE_NO_WARNINGS
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include "Bits_n_Bytes.h"
+#include "TLV_Processing.h"
+#include "Tag_List.h"
+	
+void Tag_Processing(char input_nibble_raw, unsigned int * nibble_flags, unsigned int * TagField_Size_Bytes){
+
+	unsigned int flags = (*nibble_flags);
+	unsigned int input_nibble = ASCIIHEX_to_DEC(input_nibble_raw);
+	unsigned int * input_nibble_ptr = &input_nibble;
+	
+	//Confirm we're Processing a Tag Byte.
+	if (Is_Bit_Set(Processing_Tag, nibble_flags) == 1) {
+
+		//Are we processing a subsequent Byte of the Tag Field, or the inital Byte of the Tag Field?
+
+		//Initial Byte
+		if (Is_Bit_Set(Processing_Subsequent_Field, nibble_flags) == 0) {
+
+			//Processing First Nibble in the Initial Byte.
+			if ((Is_Bit_Set(Processing_First_Nibble, nibble_flags) == 1)) {
+
+				//is b5 of initial Tag Byte Set (subsequent byte flag first nib)?
+				if (Is_Bit_Set(N1_B1, input_nibble_ptr)) {
+					Set_Bit(Processing_Subsequent_Field_FirstNibFlag, nibble_flags);
+					printf("Set Firstnibble Subsequent Flags...\n");
+				}
+				else {
+					UnSet_Bit(Processing_Subsequent_Field_FirstNibFlag, nibble_flags);
+					*TagField_Size_Bytes = 1;
+					printf("No More Subsequent Tag Bytes to Come.\n");
+					printf("Write next Nibble and Finish Tag Processing.\n");
+				}
+
+				//is b6 of initial Tag Byte Set (Primitive or Constructed Object)?
+				if (Is_Bit_Set(N1_B2, input_nibble_ptr)) {
+					Set_Bit(Processing_Constructed_Data_Object, nibble_flags);
+					printf("Constructed Data Object Detected\n");
+					printf("Nibble_Flags Set %d\n", *nibble_flags);
+				}
+				else {
+					UnSet_Bit(Processing_Constructed_Data_Object, nibble_flags);
+					printf("Primitive Data Object Detected\n");
+				}
+
+			}
+
+
+			//Processing Second Nibble in the Initial Byte.
+			else {
+				//Is the Subsequent Bytes Flag Set?
+
+				if (Is_Bit_Set(Processing_Subsequent_Field_FirstNibFlag, nibble_flags)) {
+					if (15 && *input_nibble_ptr) {
+						Set_Bit(Processing_Subsequent_Field, nibble_flags);
+						(*TagField_Size_Bytes)++;
+					}
+					else {
+					}
+				}
+				else {
+					*TagField_Size_Bytes = 1;
+				}
+
+
+				//just write the nibble value, might need to implement "(Part of) Tag Number" processing, p156 Annex B Book 3. Don't know what for.
+			}
+		}
+
+		//Subsequent Tag Byte
+		else {
+
+			//Processing First Nibble in Subsequent Byte
+			if (Is_Bit_Set(Processing_First_Nibble, nibble_flags)) {
+
+				if (N1_B4 & input_nibble) {
+					Set_Bit(Processing_Subsequent_Field_FirstNibFlag, nibble_flags);
+					TagField_Size_Bytes++;
+				}
+				else {
+					UnSet_Bit(Processing_Subsequent_Field_FirstNibFlag, nibble_flags);
+				}
+				
+
+			}
+
+			else {
+			}
+
+		}
+	}
+
+	else {
+		printf("Reading Status Error, we are not processing a Tag!\n");
+	}
+	   	   
+	printf("Tag_Size is %d\n", *TagField_Size_Bytes);
+	
+	return;	
+}
+
+int LengthField_Processing(char input_nibble, int LengthFieldValue, unsigned int *nibble_flags){
+
+	//Is the input_nibble a first nibble in a byte?
+
+	if( Is_Bit_Set(Processing_First_Nibble, nibble_flags) == 1 ){
+		
+		//Is the current nibble in the first byte of the Lengthfield?
+
+		if( LengthFieldValue == 0 ){
+
+			if( (N1_B4 && input_nibble == 0) ) {
+				//then it's a Multiple byte length field, the next nibble is the length value in Bytes.
+				printf("Field Value Pre Conversion %d\n", LengthFieldValue);
+				LengthFieldValue = ((ASCIIHEX_to_DEC(input_nibble)) - 8);
+				printf("Field Value Post Conversion, Pre Shift %d\n", LengthFieldValue);
+				LengthFieldValue = (LengthFieldValue << 4);
+				printf("Field Value Post Shift, 1st Nibble %d\n", LengthFieldValue);
+				UnSet_Bit(Processing_First_Nibble, nibble_flags);
+				Set_Bit(Processing_LengthField, nibble_flags);
+				//Value "7F" in first byte of length field translates to One Bye Length Field, with 127 BYTES in value field.
+				//The current nibble needs to be passed to the length processing function, LengthField Processing has been completed at this point.
+			}
+			else{
+				UnSet_Bit(Processing_LengthField, nibble_flags);
+				Set_Bit(Processing_Length, nibble_flags);
+				LengthFieldValue = 1;
+			}
+		}
+
+		//If pre-existing integer LengthField value, where we have determined the first nibble of integer length.
+		
+		else{
+
+			if(Is_Bit_Set(Processing_Length, nibble_flags) == 1){
+				LengthFieldValue = LengthFieldValue + (ASCIIHEX_to_DEC(input_nibble));
+				UnSet_Bit(Processing_LengthField, nibble_flags);
+				UnSet_Bit(Processing_Length, nibble_flags);
+				Set_Bit(Processing_Length, nibble_flags);
+			}
+
+			else{
+				printf("Unhandled LengthField Case reached.\n");
+			}
+		}
+	}
+	
+	else{
+
+		printf("Unhandled LengthField Case, mis-set Bits in nibble flags %d", *nibble_flags);
+
+	}
+
+return LengthFieldValue;
+
+}
+
+int Length_Processing(char input_nibble, unsigned int *nibble_flags_ptr, int Length_Field_Size, int * Length_Field_Pos, int Length){
+
+	int input_nibble_val = ASCIIHEX_to_DEC(input_nibble);
+	int i = *Length_Field_Pos;
+
+	//Are we processing a Single Byte Length?
+	if( (Length_Field_Size == 1) ){
+		
+		//Is this the first Nibble in the Single Byte Length Value?
+		
+		if( Is_Bit_Set(Processing_First_Nibble, nibble_flags_ptr) == 1 ){
+			Length = (input_nibble_val * 16);
+		}
+		
+		else{
+			Length = (Length + (input_nibble_val));
+			UnSet_Bit(Processing_Length, nibble_flags_ptr);
+			Set_Bit(Processing_Value, nibble_flags_ptr);
+		}
+
+	}
+
+	//If it isn't, we're processing a Length covered over Multiple Bytes. 
+	else {
+
+		i = (Length_Field_Size - *Length_Field_Pos) + (!Is_Bit_Set(Processing_First_Nibble,nibble_flags_ptr));
+		Length = input_nibble_val << i;
+	}
+
+	if ((*Length_Field_Pos + 1) == (Length_Field_Size) && !Is_Bit_Set(Processing_First_Nibble, nibble_flags_ptr) ) {
+		printf("Length Found %d\n", Length);
+		UnSet_Bit(Processing_Length,nibble_flags_ptr);
+		UnSet_Bit(Processing_Subsequent_Field, nibble_flags_ptr);
+		UnSet_Bit(Processing_Subsequent_Field_FirstNibFlag, nibble_flags_ptr);
+		Set_Bit(Processing_Value, nibble_flags_ptr);
+	}
+
+	*Length_Field_Pos = i + 1;
+
+	return Length;
+}
+	
+	
+void Value_Processing(char input_nibble, unsigned int *nibble_flags);
+
+char * TLV_Block_to_Output(char * Output_ptr, char * TLV_Block_ptr) {
+
+	char * Temp = NULL;
+
+	if (Output_ptr == NULL) {
+		Temp = malloc( ((strlen(TLV_Block_ptr) + 1) + (strlen("\n\n") + 1)) * sizeof(char) );
+
+		if (Temp != NULL) {
+			Output_ptr = Temp;
+			Temp = NULL;
+			*Output_ptr = '\0';
+			strcat(Output_ptr, TLV_Block_ptr);
+			strcat(Output_ptr, "\n\n");
+			TLV_Block_ptr = NULL;
+			return Output_ptr;
+
+		}
+
+		else {
+			printf("Failed to Allocate Memory to Output.\n");
+			printf("Exiting...\n\n");
+			return 0;
+		}
+	}
+
+	else {
+		Temp = realloc(Output_ptr, ((( (strlen(Output_ptr) + 1) + (strlen(TLV_Block_ptr) + 1) + (strlen("\n") + 1) ) * sizeof(char)) ));
+		if (Temp != NULL) {
+			Output_ptr = Temp;
+			Temp = NULL;
+			strcat(Output_ptr, TLV_Block_ptr);
+			strcat(Output_ptr, "\n");
+			TLV_Block_ptr = NULL;
+			return Output_ptr;
+		}
+		else {
+			printf("Failed to rellocate Memory.\n");
+			printf("Exiting...");
+			return 0;
+		}
+	}
+	//Constructed Data Object processing here.
+
+}
+
+unsigned int ASCIIHEX_to_DEC(char c){
+
+	if( (c <= 57) && (c >=48) ){
+		return (c - 48);
+	}
+	else{
+		if ( (c <= 90) && (c >= 65) ){
+			return (c - 55);
+		}
+		else{
+			return 43; //Hashtag, Marker for Invalid Data.
+		}
+	}
+}
+
+char Clean_Input(char c){
+		
+	if( ((c <= '9') && (c >= '0')) || ((c <= 'F') && (c >= 'A')) ){
+		printf("Input in range %c\n", c);
+		return c;
+	}
+	
+	else{
+		printf("Input out of range %c\n", c);
+		return '#';
+	}
+
+}
+
+char *Find_Tag_Def(char* TagDefOutput, char *SearchTag, Tag * InputList){
+	
+	int i, Tag_List_Size; 
+	
+	TagDefOutput = NULL;
+	
+	Tag_List_Size = SIZE_TAG_LIST;
+	//Tag_List_Size = sizeof(Tag_List)/sizeof(Tag);
+	printf(" Size of Tag_List is %d\n\n", Tag_List_Size);
+
+	for (i = 0; i <= Tag_List_Size; i++){
+	
+		if(TagDefOutput == NULL){
+	
+			if (strcmp( (InputList[i].BER_TLV), SearchTag) == 0){
+				TagDefOutput = malloc( sizeof(char) * ( (strlen(InputList[i].Definition)) + 1 ));
+				TagDefOutput = InputList[i].Definition;
+				printf("Found Tag.\n\t: %s \n", InputList[i].BER_TLV);
+				printf("Found Definition.\n\t: %s \n", TagDefOutput);
+				printf("Break point 1\n");
+				break;
+			}
+			else{
+			}
+		}
+
+		else{
+			i = Tag_List_Size + 1;
+		}
+	}
+
+	printf("TagDefOutput %s\n", TagDefOutput);
+	return TagDefOutput;
+}
+
+
+int Determine_Reading_Status(unsigned int* nibble_flags, int Invalid_Data_Flag){
+
+	int Reading_Status;
+	printf("Determining Reading Status...\n\n");
+	
+	if (Invalid_Data_Flag == 1) {
+		Reading_Status = 6;
+		return Reading_Status;
+	}
+
+	else {
+		Reading_Status = 0;
+	}
+	   
+	//Processing Tag Check.
+	if (Is_Bit_Set(Processing_Tag, nibble_flags)) {
+
+		//If these checks are satisfied, move to Length Processing
+		
+		//If we're Processing a 2nd Nibble
+		if (! Is_Bit_Set(Processing_First_Nibble, nibble_flags) ) {
+
+			//Does the first Nibble Indicate a Subsequent Field?
+			if (! Is_Bit_Set(Processing_Subsequent_Field_FirstNibFlag, nibble_flags) ) {
+				
+				//Last Nibble In Byte, No Subsequent Field Marker in First Nibble= No more Tag Nibbles to Read.
+				//Read and Write, then move to Length Processing.
+				UnSet_Bit(Processing_Tag, nibble_flags);
+				Set_Bit(Processing_LengthField, nibble_flags);
+				Reading_Status = 2;
+
+			}
+			else {
+				//Last Nibble in Byte, With Subsequent Field Marker in First Nibble = More Tag Nibbles to Read.
+				Reading_Status = 1;
+			}
+
+		}
+
+		//We're processing the first Nibble of a Byte.
+		else {
+			//Is it in a Subsequent Field? Eg 9F "3" 7?
+			if ( Is_Bit_Set(Processing_Subsequent_Field, nibble_flags) && Is_Bit_Set(Processing_Subsequent_Field_FirstNibFlag, nibble_flags) ) {
+				Reading_Status = 1;
+			}
+			else {
+				Reading_Status = 1;
+			}
+		}
+	}
+
+	else {
+		if (Is_Bit_Set(Processing_LengthField, nibble_flags) == 1) {
+
+			Reading_Status = 2;
+
+		}
+
+
+		else {
+
+			//Processing Length Check.
+
+			if ( (Is_Bit_Set(Processing_Length, nibble_flags) == 1) ) {
+
+					printf("Processing_Length = %d\n", 1);
+					Reading_Status = 4;
+			}
+
+			else {
+
+				//Processing Value Check.
+
+				if ((Is_Bit_Set(Processing_Value, nibble_flags)) == 1) {
+					printf("Processing Value.\n");
+					Reading_Status = 5;
+				}
+
+				else {
+					printf("Processing Unknown status. Error.\n");
+					printf("nibble_flags %d\n", *nibble_flags);
+					Reading_Status = 6;
+				}
+
+			}
+		}
+	}		
+	return Reading_Status;
+}
+
+void Debug_ReadingStatus(unsigned int* nibble_flags_ptr, int Reading_Status){
+
+	printf("_______________________________________\n");
+	printf("Processing Tag = %d\n", (Is_Bit_Set(Processing_Tag, nibble_flags_ptr)) );
+	printf("Processing LengthField= %d\n", (Is_Bit_Set(Processing_LengthField, nibble_flags_ptr)) );
+	printf("Processing Length = %d\n", (Is_Bit_Set(Processing_Length, nibble_flags_ptr)) );
+	printf("Processing Value = %d\n", (Is_Bit_Set(Processing_Value, nibble_flags_ptr)) );
+	
+	printf("Processing Subsequent Field = %d\n", (Is_Bit_Set(Processing_Subsequent_Field, nibble_flags_ptr)) );
+	printf("Processing Subsequent Field FirstNibFlag = %d\n", (Is_Bit_Set(Processing_Subsequent_Field_FirstNibFlag, nibble_flags_ptr)) );
+	printf("Processing First Nibble = %d\n", (Is_Bit_Set(Processing_First_Nibble, nibble_flags_ptr)) );
+	printf("Processing Constructed Data Object = %d\n", (Is_Bit_Set(Processing_Constructed_Data_Object, nibble_flags_ptr)) );
+	printf("_______________________________________\n");
+	printf("Reading Status %d\n", Reading_Status);
+	printf("_______________________________________\n\n");
+
+	return;
+}
