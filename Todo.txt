@@ -1,0 +1,5 @@
+ToDo
+
+1) Restructure the switch cases, so they are not reliant upon int's and instead are named #DEFINE variables
+2) Create a TLV_Block structure, with child and parent flags.
+3) Use the TLV_Block structure mentioned above to implemented constructed data objects.
