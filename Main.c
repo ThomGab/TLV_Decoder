@@ -91,7 +91,7 @@ int main(int argc, char *argv[]){
 
 		}
 
-		if (Length_Field_Pos == ((Length * 2)) && (Length != 0) && !Is_Bit_Set(Processing_Tag,nibble_flags_ptr)) {
+		if (Length_Field_Pos > ((Length * 2)) && (Length != 0) && !Is_Bit_Set(Processing_Tag,nibble_flags_ptr)) {
 			printf("Value Processing Complete.\n");
 			Output = TLV_Block_to_Output(Output, TLV_Block);
 			TLV_Block_pos = file_pos;
@@ -210,17 +210,12 @@ int main(int argc, char *argv[]){
 				Set_Bit(Processing_LengthField, nibble_flags_ptr);
 				UnSet_Bit(Processing_Length, nibble_flags_ptr);
 
-				Length_Field_Size = LengthField_Processing(input_nibble_cleaned, Length_Field_Size, nibble_flags_ptr);
+				Length_Field_Size = LengthField_Processing(input_nibble_str, Length_Field_Size, nibble_flags_ptr);
 				
 				//Need to amend the function above, to pass pointer to Length value. All LengthField Processing should be done within the function. 
-				if( Length_Field_Size > 1){
-					Length_Field_Size = ASCIIHEX_to_DEC(input_nibble_cleaned);
-					UnSet_Bit(B1_B8, &Length_Field_Size);
-					Length_Field_Size = (Length << 4);
-					Reading_Status = 3;
-				}
-			
-				else{
+
+				if(Is_Bit_Set(Processing_Length, nibble_flags_ptr)){			
+
 					Length = ( ASCIIHEX_to_DEC(input_nibble_cleaned) * 16);
 					Reading_Status = 4;
 					UnSet_Bit(Processing_LengthField, nibble_flags_ptr); 
@@ -242,6 +237,13 @@ int main(int argc, char *argv[]){
 
 				}
 
+				else {
+
+					//the first nibble of the Length Field is 8 or higher.
+					Reading_Status = 3;
+
+				}
+
 				//First nibble of Length Field has been determined, move to the second to complete length processing.
 
 				break;
@@ -249,9 +251,9 @@ int main(int argc, char *argv[]){
 			case(3):
 				//Still determining Size of Length Field. 
 			
-				Length_Field_Size = LengthField_Processing(input_nibble_cleaned, Length_Field_Size, nibble_flags_ptr);
+				Length_Field_Size = LengthField_Processing(input_nibble_str, Length_Field_Size, nibble_flags_ptr);
 				printf("Length Field Size %d\n", Length_Field_Size);
-				printf("Is Length Field processing complete? %d", ( Is_Bit_Set(Processing_Length, nibble_flags_ptr) && Is_Bit_Set(Processing_First_Nibble, nibble_flags_ptr) ));
+				printf("Is Length Field processing complete? %d", ( Is_Bit_Set(Processing_Length, nibble_flags_ptr) ));
 
 				if (Is_Bit_Set(Processing_Length, nibble_flags_ptr)) {
 					//Length Field Processing Complete, Reallocate the TLV_Block Buffer so it can be prepared to write the length Value.
@@ -259,6 +261,8 @@ int main(int argc, char *argv[]){
 					
 					if (Temp != NULL) {
 						TLV_Block = Temp;
+						strcat(TLV_Block, "\tLength: ");
+						Temp = NULL;
 					}
 					else {
 						printf("Reallocation Failed!");
@@ -276,27 +280,59 @@ int main(int argc, char *argv[]){
 
 				//Is the Length coded across a single Byte?
 				if (Length_Field_Size == 1) {
-					//In this instance we will already have the first nibble of the Byte Value, All we have to do is add the 2nd Nibble to the existing Length Value and Move to Value Processing.
-					Length = Length + Length_Processing(input_nibble_cleaned, nibble_flags_ptr, Length_Field_Size, Length_Field_Pos_ptr, Length);
-					Temp = realloc(TLV_Block, (( (strlen(TLV_Block) + (Length_Field_Size * 2) + strlen("\n\tValue: ") + (Length*2) + 1) * sizeof(char))) );
 
-					if (Temp != NULL) {
-						TLV_Block = Temp;
-					}
-					else {
-						printf("Reallocation Failed!");
-						Reading_Status = 6;
+					if ( (!Is_Bit_Set(Processing_Subsequent_Field, nibble_flags_ptr)) ) { //ie non "81" Field Byte Value.
+
+						//In this instance we will already have the first nibble of the Byte Value, All we have to do is add the 2nd Nibble to the existing Length Value and Move to Value Processing.
+						Length = Length + Length_Processing(input_nibble_cleaned, nibble_flags_ptr, Length_Field_Size, Length_Field_Pos_ptr, Length);
+						Temp = realloc(TLV_Block, (((strlen(TLV_Block) + (Length_Field_Size * 2) + strlen("\n\tValue: ") + (Length * 2) + 1) * sizeof(char))));
+
+						if (Temp != NULL) {
+							TLV_Block = Temp;
+						}
+						else {
+							printf("Reallocation Failed!");
+							Reading_Status = 6;
+						}
+
+						strcat(TLV_Block, input_nibble_str);
+						strcat(TLV_Block, "\n\tValue: ");
+						printf("Length Processing Complete.\n");
+						Length_Field_Pos = 0;
+
 					}
 
-					strcat(TLV_Block, input_nibble_str);
-					strcat(TLV_Block, "\n\tValue: ");
-					printf("Length Processing Complete.\n");
-					Length_Field_Pos = 0;
+					else { //Length Field is a "81".
+
+						Length = Length + Length_Processing(input_nibble_cleaned, nibble_flags_ptr, Length_Field_Size, Length_Field_Pos_ptr, Length);
+						Temp = realloc(TLV_Block, (((strlen(TLV_Block) + (Length_Field_Size * 2) + strlen("\n\tValue: ") + (Length * 2) + 1) * sizeof(char))));
+
+						if (Temp != NULL) {
+							TLV_Block = Temp;
+						}
+						else {
+							printf("Reallocation Failed!");
+							Reading_Status = 6;
+						}
+
+						strcat(TLV_Block, input_nibble_str);
+						if (Length_Field_Pos == (Length_Field_Size)) {
+						
+						}
+						else {
+							strcat(TLV_Block, "\n\tValue: ");
+							printf("Length Processing Complete.\n");
+							Length_Field_Pos = 0;
+						}
+
+
+					}
+
 				}
 
 				//The Length is coded across multiple Bytes.
 				else {
-					if (Length_Field_Pos <= Length_Field_Size) {
+					if (Length_Field_Pos <= ((Length_Field_Size*2)) ) { //Field Position in Nibbles, Length_Field_Size is in Bytes.
 						printf("Length_Field_Pos %d", Length_Field_Pos);
 						Length = Length + Length_Processing(input_nibble_cleaned, nibble_flags_ptr, Length_Field_Size, Length_Field_Pos_ptr, Length);
 					}
@@ -326,7 +362,7 @@ int main(int argc, char *argv[]){
 				//Writing the Value data, using the Length Value determined.
 
 				//Length_Field_Pos variable is now used to track the position of the current value Nibble being read.
-				if (Length_Field_Pos <= ((Length*2)-1)) {
+				if (Length_Field_Pos <= ((Length*2))) {
 
 					strcat(TLV_Block, input_nibble_str);
 					printf("Wrote %c to %s\n", input_nibble_cleaned, TLV_Block);

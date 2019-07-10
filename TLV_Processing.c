@@ -102,55 +102,47 @@ void Tag_Processing(char input_nibble_raw, unsigned int * nibble_flags, unsigned
 	return;	
 }
 
-int LengthField_Processing(char input_nibble, int LengthFieldValue, unsigned int *nibble_flags){
+int LengthField_Processing(char * input_nibble_str, int LengthFieldValue, unsigned int *nibble_flags){
 
 	//Is the input_nibble a first nibble in a byte?
+
+	int input_nibble_int = atoi(input_nibble_str);
 
 	if( Is_Bit_Set(Processing_First_Nibble, nibble_flags) == 1 ){
 		
 		//Is the current nibble in the first byte of the Lengthfield?
 
-		if( LengthFieldValue == 0 ){
+		if( LengthFieldValue == 0 && (!Is_Bit_Set(Processing_Subsequent_Field,nibble_flags)) ){
 
-			if( (N1_B4 && input_nibble == 0) ) {
+			if( ( (N1_B4 && input_nibble_int) == 1) ) {
 				//then it's a Multiple byte length field, the next nibble is the length value in Bytes.
-				printf("Field Value Pre Conversion %d\n", LengthFieldValue);
-				LengthFieldValue = ((ASCIIHEX_to_DEC(input_nibble)) - 8);
-				printf("Field Value Post Conversion, Pre Shift %d\n", LengthFieldValue);
-				LengthFieldValue = (LengthFieldValue << 4);
-				printf("Field Value Post Shift, 1st Nibble %d\n", LengthFieldValue);
-				UnSet_Bit(Processing_First_Nibble, nibble_flags);
 				Set_Bit(Processing_LengthField, nibble_flags);
+				Set_Bit(Processing_Subsequent_Field, nibble_flags); // Using this as a Marker for Length Field Values with bit 8 set.
 				//Value "7F" in first byte of length field translates to One Bye Length Field, with 127 BYTES in value field.
 				//The current nibble needs to be passed to the length processing function, LengthField Processing has been completed at this point.
 			}
 			else{
 				UnSet_Bit(Processing_LengthField, nibble_flags);
 				Set_Bit(Processing_Length, nibble_flags);
+				UnSet_Bit(Processing_Subsequent_Field, nibble_flags);
 				LengthFieldValue = 1;
 			}
 		}
 
-		//If pre-existing integer LengthField value, where we have determined the first nibble of integer length.
-		
+		//Your in first nibble, but there is a prexisting Length Field Value. (indicating a prior byte in the length field) eg 7F.
 		else{
 
-			if(Is_Bit_Set(Processing_Length, nibble_flags) == 1){
-				LengthFieldValue = LengthFieldValue + (ASCIIHEX_to_DEC(input_nibble));
-				UnSet_Bit(Processing_LengthField, nibble_flags);
-				UnSet_Bit(Processing_Length, nibble_flags);
-				Set_Bit(Processing_Length, nibble_flags);
-			}
+			printf("Unhandled LengthField Case reached.\n");
 
-			else{
-				printf("Unhandled LengthField Case reached.\n");
-			}
 		}
 	}
 	
 	else{
 
-		printf("Unhandled LengthField Case, mis-set Bits in nibble flags %d", *nibble_flags);
+		//in A second Nibble of a Byte Field.
+		LengthFieldValue = input_nibble_int;
+		Set_Bit(Processing_Length, nibble_flags);
+		UnSet_Bit(Processing_LengthField, nibble_flags);
 
 	}
 
@@ -175,6 +167,7 @@ int Length_Processing(char input_nibble, unsigned int *nibble_flags_ptr, int Len
 		else{
 			Length = (Length + (input_nibble_val));
 			UnSet_Bit(Processing_Length, nibble_flags_ptr);
+			UnSet_Bit(Processing_Subsequent_Field, nibble_flags_ptr);
 			Set_Bit(Processing_Value, nibble_flags_ptr);
 		}
 
@@ -183,19 +176,19 @@ int Length_Processing(char input_nibble, unsigned int *nibble_flags_ptr, int Len
 	//If it isn't, we're processing a Length covered over Multiple Bytes. 
 	else {
 
-		i = (Length_Field_Size - *Length_Field_Pos) + (!Is_Bit_Set(Processing_First_Nibble,nibble_flags_ptr));
-		Length = input_nibble_val << i;
+		i = ((Length_Field_Size*2) - (*Length_Field_Pos+1));
+		Length = input_nibble_val << (i*4); //raises to the appropriate value, ie 0010 = 16, or 1010 = 16 + 4096
 	}
 
-	if ((*Length_Field_Pos + 1) == (Length_Field_Size) && !Is_Bit_Set(Processing_First_Nibble, nibble_flags_ptr) ) {
+	if ((*Length_Field_Pos) == ((Length_Field_Size*2)-1) && !Is_Bit_Set(Processing_First_Nibble, nibble_flags_ptr) ) {
 		printf("Length Found %d\n", Length);
+		*Length_Field_Pos = 0; // reinitialising to zero, so this can be used as a counter in the value processing stage. 
 		UnSet_Bit(Processing_Length,nibble_flags_ptr);
-		UnSet_Bit(Processing_Subsequent_Field, nibble_flags_ptr);
 		UnSet_Bit(Processing_Subsequent_Field_FirstNibFlag, nibble_flags_ptr);
 		Set_Bit(Processing_Value, nibble_flags_ptr);
 	}
 
-	*Length_Field_Pos = i + 1;
+	(*Length_Field_Pos)++;
 
 	return Length;
 }
@@ -340,6 +333,7 @@ int Determine_Reading_Status(unsigned int* nibble_flags, int Invalid_Data_Flag){
 				
 				//Last Nibble In Byte, No Subsequent Field Marker in First Nibble= No more Tag Nibbles to Read.
 				//Read and Write, then move to Length Processing.
+				UnSet_Bit(Processing_Subsequent_Field, nibble_flags);
 				UnSet_Bit(Processing_Tag, nibble_flags);
 				Set_Bit(Processing_LengthField, nibble_flags);
 				Reading_Status = 2;
@@ -367,7 +361,7 @@ int Determine_Reading_Status(unsigned int* nibble_flags, int Invalid_Data_Flag){
 	else {
 		if (Is_Bit_Set(Processing_LengthField, nibble_flags) == 1) {
 
-			Reading_Status = 2;
+			Reading_Status = 3;
 
 		}
 
@@ -387,6 +381,7 @@ int Determine_Reading_Status(unsigned int* nibble_flags, int Invalid_Data_Flag){
 				//Processing Value Check.
 
 				if ((Is_Bit_Set(Processing_Value, nibble_flags)) == 1) {
+					UnSet_Bit(Processing_Subsequent_Field, nibble_flags);
 					printf("Processing Value.\n");
 					Reading_Status = 5;
 				}

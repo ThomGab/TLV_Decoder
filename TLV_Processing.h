@@ -21,10 +21,19 @@
 		char * Definition;
 	}Tag;
 
+	typedef struct TLV_Block {
+		char * Tag_Name;
+		char * Tag_Def;
+		char * Length;
+		char * Value;
+		struct TLV_Block * Children;
+		struct TLV_Block * Parent;
+	}TLV_Block;
+
 	int Determine_Reading_Status(unsigned int * nibble_flags_ptr, int Invalid_Data_Flag);
 	
 	void Tag_Processing(char input_nibble, unsigned int * nibble_flags_ptr, unsigned int * TagField_Size_Bytes_ptr);
-	int LengthField_Processing(char input_nibble, int Length_Field_Size, unsigned int * nibble_flags_ptr);
+	int LengthField_Processing(char * input_nibble_str, int Length_Field_Size, unsigned int * nibble_flags_ptr);
 	int Length_Processing(char input_nibble, unsigned int * nibble_flags_ptr, int LengthField_Size, int * Length_Field_Pos, int Length);
 	void Value_Processing(char input_nibble, unsigned int * nibble_flags_ptr);
 	char * TLV_Block_to_Output(char* Output_ptr, char* TLV_Block_ptr);
