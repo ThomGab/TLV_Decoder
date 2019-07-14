@@ -150,47 +150,22 @@ return LengthFieldValue;
 
 }
 
-int Length_Processing(char input_nibble, unsigned int *nibble_flags_ptr, int Length_Field_Size, int * Length_Field_Pos, int Length){
+int Length_Processing(char * Temp_Buffer, unsigned int *nibble_flags_ptr, int Length_Field_Size_Bytes){
 
-	int input_nibble_val = ASCIIHEX_to_DEC(input_nibble);
-	int i = *Length_Field_Pos;
+	int i, raw_input, Length, shift;
+	
+	i = 0;
+	raw_input = 0;
+	Length = 0;
+	shift = 0;
 
-	//Are we processing a Single Byte Length?
-	if( (Length_Field_Size == 1) ){
-		
-		//Is this the first Nibble in the Single Byte Length Value?
-		
-		if( Is_Bit_Set(Processing_First_Nibble, nibble_flags_ptr) == 1 ){
-			Length = (input_nibble_val * 16);
-		}
-		
-		else{
-			Length = (Length + (input_nibble_val));
-			UnSet_Bit(Processing_Length, nibble_flags_ptr);
-			UnSet_Bit(Processing_Subsequent_Field, nibble_flags_ptr);
-			Set_Bit(Processing_Value, nibble_flags_ptr);
-		}
-
+	for( i = 0; Temp_Buffer[i] != '\0'; i++){
+		raw_input = ASCIIHEX_to_DEC(Temp_Buffer[i]);
+		shift = ( 1 << ( ( ((Length_Field_Size_Bytes * 2) - i) - 1 ) * 4));
+		Length = Length + (raw_input * shift); //Length in Bytes
 	}
 
-	//If it isn't, we're processing a Length covered over Multiple Bytes. 
-	else {
-
-		i = ((Length_Field_Size*2) - (*Length_Field_Pos+1));
-		Length = input_nibble_val << (i*4); //raises to the appropriate value, ie 0010 = 16, or 1010 = 16 + 4096
-	}
-
-	if ((*Length_Field_Pos) == ((Length_Field_Size*2)-1) && !Is_Bit_Set(Processing_First_Nibble, nibble_flags_ptr) ) {
-		printf("Length Found %d\n", Length);
-		*Length_Field_Pos = 0; // reinitialising to zero, so this can be used as a counter in the value processing stage. 
-		UnSet_Bit(Processing_Length,nibble_flags_ptr);
-		UnSet_Bit(Processing_Subsequent_Field_FirstNibFlag, nibble_flags_ptr);
-		Set_Bit(Processing_Value, nibble_flags_ptr);
-	}
-
-	(*Length_Field_Pos)++;
-
-	return Length;
+	return (Length * 2); // Length in Nibbles
 }
 	
 	
