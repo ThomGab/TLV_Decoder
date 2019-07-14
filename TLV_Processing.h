@@ -33,6 +33,7 @@
 	int Determine_Reading_Status(unsigned int * nibble_flags_ptr, int Invalid_Data_Flag);
 	
 	void Tag_Processing(char input_nibble, unsigned int * nibble_flags_ptr, unsigned int * TagField_Size_Bytes_ptr);
+
 	int LengthField_Processing(char * input_nibble_str, int Length_Field_Size_Bytes, unsigned int * nibble_flags_ptr);
 	int Length_Processing(char * Temp_Buffer, unsigned int *nibble_flags_ptr, int Length_Field_Size_Bytes);
 	void Value_Processing(char input_nibble, unsigned int * nibble_flags_ptr);

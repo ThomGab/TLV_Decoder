@@ -247,6 +247,13 @@ int main(int argc, char *argv[]){
 
 				}
 
+				else {
+
+					//the first nibble of the Length Field is 8 or higher.
+					Reading_Status = 3;
+
+				}
+
 				//First nibble of Length Field has been determined, move to the second to complete length processing.
 
 				break;
@@ -256,7 +263,6 @@ int main(int argc, char *argv[]){
 			
 				Length_Field_Size_Bytes = LengthField_Processing(input_nibble_str, Length_Field_Size_Bytes, nibble_flags_ptr);
 				printf("Length Field Size %d\n", Length_Field_Size_Bytes);
-				printf("Is Length Field processing complete? %d", ( Is_Bit_Set(Processing_Length, nibble_flags_ptr) ));
 
 				if (Is_Bit_Set(Processing_Length, nibble_flags_ptr)) {
 					//Length Field Processing Complete, Reallocate the TLV_Block Buffer so it can be prepared to write the length Value.
@@ -267,7 +273,6 @@ int main(int argc, char *argv[]){
 						strcat(TLV_Block, "\tLength: ");
 						Temp_Buffer = realloc( Temp_Buffer, ((Length_Field_Size_Bytes * 2) + 1) *sizeof(char));
 						*Temp_Buffer = '\0';
-						Temp = NULL;
 					}
 					else {
 						printf("Reallocation Failed!");
