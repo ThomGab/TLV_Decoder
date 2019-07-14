@@ -283,7 +283,7 @@ char *Find_Tag_Def(char* TagDefOutput, char *SearchTag, Tag * InputList){
 
 int Determine_Reading_Status(unsigned int* nibble_flags, int Invalid_Data_Flag){
 
-	int Reading_Status;
+	int Reading_Status = 0;
 	printf("Determining Reading Status...\n\n");
 	
 	if (Invalid_Data_Flag == 1) {
@@ -334,6 +334,7 @@ int Determine_Reading_Status(unsigned int* nibble_flags, int Invalid_Data_Flag){
 	}
 
 	else {
+		//Processing Length Field Check
 		if (Is_Bit_Set(Processing_LengthField, nibble_flags) == 1) {
 
 			Reading_Status = 3;
@@ -344,7 +345,6 @@ int Determine_Reading_Status(unsigned int* nibble_flags, int Invalid_Data_Flag){
 		else {
 
 			//Processing Length Check.
-
 			if ( (Is_Bit_Set(Processing_Length, nibble_flags) == 1) ) {
 
 					printf("Processing_Length = %d\n", 1);
@@ -354,7 +354,6 @@ int Determine_Reading_Status(unsigned int* nibble_flags, int Invalid_Data_Flag){
 			else {
 
 				//Processing Value Check.
-
 				if ((Is_Bit_Set(Processing_Value, nibble_flags)) == 1) {
 					UnSet_Bit(Processing_Subsequent_Field, nibble_flags);
 					printf("Processing Value.\n");
@@ -362,9 +361,33 @@ int Determine_Reading_Status(unsigned int* nibble_flags, int Invalid_Data_Flag){
 				}
 
 				else {
-					printf("Processing Unknown status. Error.\n");
-					printf("nibble_flags %d\n", *nibble_flags);
-					Reading_Status = 6;
+
+					//Processing Value Complete check, First Nibble of Processing_nibbles flags should = 0.
+
+					if ( ( !Is_Bit_Set(Processing_Value,nibble_flags) && !Is_Bit_Set(Processing_LengthField, nibble_flags) && !Is_Bit_Set(Processing_Length, nibble_flags) && !Is_Bit_Set(Processing_Value, nibble_flags) )) {
+
+						printf("Processing Value Complete.\n");
+						printf("Moving to Next Tag\n");
+						Set_Bit(Processing_Tag, nibble_flags);
+
+						Reading_Status = 1;						
+
+						/*
+						printf("Determining next state, are we in a constructed data object?\n");
+						if (Is_Bit_Set(Processing_Constructed_Data_Object, nibble_flags) == 1) {				   				
+						}*/
+
+
+					}
+
+					else {
+
+						printf("Processing Unknown status. Error.\n");
+						printf("nibble_flags %d\n", *nibble_flags);
+						Reading_Status = 6;
+
+					}
+
 				}
 
 			}
