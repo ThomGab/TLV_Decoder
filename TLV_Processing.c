@@ -116,7 +116,6 @@ int LengthField_Processing(char * input_nibble_str, int LengthFieldValue, unsign
 
 			if( ( (N1_B4 && input_nibble_int) == 1) ) {
 				//then it's a Multiple byte length field, the next nibble is the length value in Bytes.
-				Set_Bit(Processing_LengthField, nibble_flags);
 				Set_Bit(Processing_Subsequent_Field, nibble_flags); // Using this as a Marker for Length Field Values with bit 8 set.
 				//Value "7F" in first byte of length field translates to One Bye Length Field, with 127 BYTES in value field.
 				//The current nibble needs to be passed to the length processing function, LengthField Processing has been completed at this point.
@@ -271,13 +270,18 @@ char *Find_Tag_Def(char* TagDefOutput, char *SearchTag, Tag * InputList){
 			}
 		}
 
-		else{
-			i = Tag_List_Size + 1;
-		}
 	}
 
-	printf("TagDefOutput %s\n", TagDefOutput);
-	return TagDefOutput;
+	if (TagDefOutput == NULL) {
+		TagDefOutput = malloc(sizeof(char) * ( (strlen(" - Undefined Tag\n")) + 1));
+		TagDefOutput = " - Undefined Tag\n";
+		return TagDefOutput;
+	}
+
+	else {
+		return TagDefOutput;
+	}
+
 }
 
 
@@ -394,6 +398,21 @@ int Determine_Reading_Status(unsigned int* nibble_flags, int Invalid_Data_Flag){
 		}
 	}		
 	return Reading_Status;
+}
+
+TLV_Block * Create_New_TLV_Block(void) {
+
+	TLV_Block * New_TLV_Block_ptr = malloc(sizeof(TLV_Block));
+
+	New_TLV_Block_ptr->Tag = NULL;
+	New_TLV_Block_ptr->Length = NULL;
+	New_TLV_Block_ptr->Value = NULL;
+	New_TLV_Block_ptr->Children = NULL;
+	New_TLV_Block_ptr->Parent = NULL;
+	New_TLV_Block_ptr->Head = NULL;
+
+	return New_TLV_Block_ptr;
+
 }
 
 void Debug_ReadingStatus(unsigned int* nibble_flags_ptr, int Reading_Status){

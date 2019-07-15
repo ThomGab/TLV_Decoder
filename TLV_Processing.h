@@ -21,15 +21,14 @@
 		char * Definition;
 	}Tag;
 
-	typedef struct TLV_Bloc {
-		char * Tag_Name;
-		char * Tag_Def;
+	typedef struct TLV_Block {
+		char * Tag;
 		char * Length;
 		char * Value;
-		struct TLV_Bloc * Children;
-		struct TLV_Bloc * Parent;
-		struct TLV_Bloc * Head;
-	}TLV_Bloc;
+		struct TLV_Block * Children;
+		struct TLV_Block * Parent;
+		struct TLV_Block * Head;
+	}TLV_Block;
 
 	int Determine_Reading_Status(unsigned int * nibble_flags_ptr, int Invalid_Data_Flag);
 	
@@ -39,6 +38,8 @@
 	int Length_Processing(char * Temp_Buffer, unsigned int *nibble_flags_ptr, int Length_Field_Size_Bytes);
 	void Value_Processing(char input_nibble, unsigned int * nibble_flags_ptr);
 	char * TLV_Block_to_Output(char* Output_ptr, char* TLV_Block_ptr);
+
+	TLV_Block * Create_New_TLV_Block(void);
 
 	unsigned ASCIIHEX_to_DEC(char c);
 	char Clean_Input(char c);
