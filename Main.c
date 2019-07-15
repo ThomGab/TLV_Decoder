@@ -44,9 +44,13 @@ int main(int argc, char *argv[]){
 	//Buffers
 	char * Tag_Def = NULL;
 	char * Temp_Buffer = NULL;
-	char * TLV_Block = NULL;
+	char * TLV_Head = NULL; 
 	char * Output = NULL;
 	char * Temp;
+
+	//TLV_Head Element
+
+	
 	
 
 	//Verify Input File and Establish it's size in Nibbles.
@@ -91,20 +95,17 @@ int main(int argc, char *argv[]){
 
 		}
 
-		if (Length_Field_Pos > ((Length * 2)) && (Length != 0) && !Is_Bit_Set(Processing_Tag,nibble_flags_ptr)) {
+		/*if (Length_Field_Pos > ((Length * 2)) && (Length != 0) && !Is_Bit_Set(Processing_Tag,nibble_flags_ptr)) {
 			printf("Value Processing Complete.\n");
-			Output = TLV_Block_to_Output(Output, TLV_Block);
+			Output = TLV_Block_to_Output(Output, TLV_Head);
 			TLV_Block_pos = file_pos;
-			UnSet_Bit(Processing_Value, nibble_flags_ptr);
-			Set_Bit(Processing_Tag, nibble_flags_ptr);
 			Temp_Buffer = NULL;
+			TLV_Head = NULL;
 			Length_Field_Pos = 0;
 			Length = 0;
-			Reading_Status = Determine_Reading_Status(nibble_flags_ptr, Invalid_Data_Found);
 			Debug_ReadingStatus(nibble_flags_ptr, Reading_Status);
-			TLV_Block = NULL;
 
-		}
+		}*/
 
 		printf("Reading Status Pre_Nibble Read\n");
 		Debug_ReadingStatus(nibble_flags_ptr, Reading_Status);
@@ -133,10 +134,12 @@ int main(int argc, char *argv[]){
 				if( (Temp_Buffer == NULL) ){
 					Temp_Buffer = malloc( ((sizeof * Temp_Buffer) * ((TagField_Size_Bytes * 2) + 1)) );
 					*Temp_Buffer = '\0';
-					printf("Initialising TagField Buffer...\n");
+					//Setting up new TLV_Head
+
 				}
 									
 				else{
+					//If B5 and B4 of the first Byte of the Tag suggest a 2 Byte Tag, we have to expand the tag buffer.
 					if (Is_Bit_Set(Processing_Subsequent_Field_FirstNibFlag, nibble_flags_ptr) && Is_Bit_Set(Processing_Subsequent_Field, nibble_flags_ptr)) {
 						printf("We need to Realloc the Tag Buffer");
 						Temp = realloc(Temp_Buffer, ((sizeof(char) * TagField_Size_Bytes * 2) + 1));
@@ -160,25 +163,7 @@ int main(int argc, char *argv[]){
 				printf("\nReading Status After Tag Processing\n");
 				Debug_ReadingStatus(nibble_flags_ptr, Reading_Status);
 
-				//Append this value to the search Tag Buffer.
-				printf("Writing %c ", input_nibble_cleaned);
-				printf("To %s\n", Temp_Buffer);
-
-				//If the Size of The Tag Field has increased, we must reallocate the size of the initial Buffer.
-				/*if ((Is_Bit_Set(Processing_Tag_FirstByte, nibble_flags_ptr) == 0) && (Is_Bit_Set(Processing_Large_TagField_firstnib, nibble_flags_ptr) == 1)) {
-						Tag_Buffer_Start = realloc(Tag_Buffer_Start, ((sizeof * Temp_Buffer) * ((TagField_Size_Bytes * 2) + 1)));
-						printf("Expanding TagField Buffer...\n");
-						printf("Tag_Buffer_Start %p\n", Tag_Buffer_Start);
-						printf("Temp_Buffer %p\n", Temp_Buffer);
-					}
-				//If it hasn't, we don't need to expand the Tag Buffer.
-				else{
-
-				}*/
-
-				//strcat(Temp_Buffer, input_nibble_str);
 				strcat(Temp_Buffer, input_nibble_str);
-				printf("Temp_Buffer, \t %s\n", Temp_Buffer);
 
 				break;
 
@@ -188,21 +173,24 @@ int main(int argc, char *argv[]){
 				Tag_Def = Find_Tag_Def(Tag_Def, Temp_Buffer, TagList);
 								
 				if (Tag_Def != NULL){
-					//change this to write into the final TLV_Block one line at a time.
-					TLV_Block = malloc( (sizeof(char)) * (strlen(Tag_Def) + strlen(Temp_Buffer) + 2) );
-					strcpy(TLV_Block,Temp_Buffer);
-					strcat(TLV_Block,Tag_Def);
-					strcat(TLV_Block, "\n");
+					//change this to write into the final TLV_Head one line at a time.
+					TLV_Head = malloc( (sizeof(char)) * (strlen(Tag_Def) + strlen(Temp_Buffer) + 2) );
+					strcpy(TLV_Head,Temp_Buffer);
+					strcat(TLV_Head,Tag_Def);
+					strcat(TLV_Head, "\n");
 					Tag_Def = NULL;
 					Temp_Buffer = NULL;
-					printf("TLV_Block:\n%s", TLV_Block);
+					printf("TLV_Head:\n%s", TLV_Head);
 				}
 				else{
 					Tag_Def = "- Undefined Tag\n";
-					strcpy(TLV_Block, Temp_Buffer);
-					strcat(TLV_Block, Tag_Def);
-					printf("TLV_Block:\n%s", TLV_Block);	
+					strcpy(TLV_Head, Temp_Buffer);
+					strcat(TLV_Head, Tag_Def);
+					printf("TLV_Head:\n%s", TLV_Head);	
 				}
+
+				//Copying Temp into the active TLV Block:
+
 
 				/*free(Temp_Buffer);
 				free(Tag_Def);*/
@@ -221,18 +209,18 @@ int main(int argc, char *argv[]){
 					UnSet_Bit(Processing_LengthField, nibble_flags_ptr); 
 					Set_Bit(Processing_Length, nibble_flags_ptr);
 
-					//Length Field Processing Complete. Realloc the TLV_Block Buffer to a size where Length Can be Written.
-					Temp = realloc(TLV_Block, (( (strlen(TLV_Block) + strlen("\tLength: ") + (Length_Field_Size_Bytes * 2) + 1) * sizeof(char) )) );
+					//Length Field Processing Complete. Realloc the TLV_Head Buffer to a size where Length Can be Written.
+					Temp = realloc(TLV_Head, (( (strlen(TLV_Head) + strlen("\tLength: ") + (Length_Field_Size_Bytes * 2) + 1) * sizeof(char) )) );
 					
 					if (Temp != NULL) {
-						TLV_Block = Temp;
+						TLV_Head = Temp;
 					}
 					else {
 						printf("Reallocation Failed!");
 						Reading_Status = 6;
 					}
 
-					strcat(TLV_Block, "\tLength: ");
+					strcat(TLV_Head, "\tLength: ");
 					Temp_Buffer = realloc( Temp_Buffer, ((Length_Field_Size_Bytes * 2) + 1));
 					*Temp_Buffer = '\0';
 					strcat(Temp_Buffer, input_nibble_str);
@@ -246,14 +234,6 @@ int main(int argc, char *argv[]){
 					Reading_Status = 3;
 
 				}
-
-				else {
-
-					//the first nibble of the Length Field is 8 or higher.
-					Reading_Status = 3;
-
-				}
-
 				//First nibble of Length Field has been determined, move to the second to complete length processing.
 
 				break;
@@ -265,12 +245,12 @@ int main(int argc, char *argv[]){
 				printf("Length Field Size %d\n", Length_Field_Size_Bytes);
 
 				if (Is_Bit_Set(Processing_Length, nibble_flags_ptr)) {
-					//Length Field Processing Complete, Reallocate the TLV_Block Buffer so it can be prepared to write the length Value.
-					Temp = realloc(TLV_Block, (((strlen(TLV_Block) + (Length_Field_Size_Bytes * 2) + strlen("\tLength: ") + 1) * sizeof(char))));
+					//Length Field Processing Complete, Reallocate the TLV_Head Buffer so it can be prepared to write the length Value.
+					Temp = realloc(TLV_Head, (((strlen(TLV_Head) + (Length_Field_Size_Bytes * 2) + strlen("\tLength: ") + 1) * sizeof(char))));
 					
 					if (Temp != NULL) {
-						TLV_Block = Temp;
-						strcat(TLV_Block, "\tLength: ");
+						TLV_Head = Temp;
+						strcat(TLV_Head, "\tLength: ");
 						Temp_Buffer = realloc( Temp_Buffer, ((Length_Field_Size_Bytes * 2) + 1) *sizeof(char));
 						*Temp_Buffer = '\0';
 					}
@@ -300,13 +280,16 @@ int main(int argc, char *argv[]){
 						
 						if (Length_Field_Pos == (Length_Field_Size_Bytes* 2)){
 
-							Temp = realloc(TLV_Block, (((strlen(TLV_Block) + strlen(Temp_Buffer) + strlen("\n\tValue: ") + strlen(input_nibble_str) )* sizeof(char))));
+							Temp = realloc(TLV_Head, (((strlen(TLV_Head) + strlen(Temp_Buffer) + strlen("\n\tValue: ") + strlen(input_nibble_str) )* sizeof(char))));
 							
 							if (Temp != NULL){
-								TLV_Block = Temp;
-								strcat(TLV_Block, Temp_Buffer);
-								strcat(TLV_Block, "\n\tValue: ");
-								strcat(TLV_Block, input_nibble_str);
+								TLV_Head = Temp;
+								strcat(TLV_Head, Temp_Buffer);
+
+								//Constructed Data Object Processing here.
+
+								strcat(TLV_Head, "\n\tValue: ");
+								strcat(TLV_Head, input_nibble_str);
 								Length = Length_Processing(Temp_Buffer, nibble_flags_ptr, Length_Field_Size_Bytes);
 								UnSet_Bit(Processing_Length, nibble_flags_ptr);
 								Set_Bit(Processing_Value, nibble_flags_ptr);
@@ -336,15 +319,25 @@ int main(int argc, char *argv[]){
 				//Writing the Value data, using the Length Value determined.
 
 				//Length_Field_Pos variable is now used to track the position of the current value Nibble being read.
-				if (Length_Field_Pos <= ((Length*2))) {
+				if (Length_Field_Pos < (Length) ) {
 
-					strcat(TLV_Block, input_nibble_str);
-					printf("Wrote %c to %s\n", input_nibble_cleaned, TLV_Block);
-					printf("Result: %s\n", TLV_Block);
+					strcat(TLV_Head, input_nibble_str);
+					printf("Wrote %c to %s\n", input_nibble_cleaned, TLV_Head);
+					printf("Result: %s\n", TLV_Head);
 					Length_Field_Pos++;
 
-					if (Length_Field_Pos > (Length)) {
+					if (Length_Field_Pos == (Length)) {
+						UnSet_Bit(Processing_Value, nibble_flags_ptr);
+						Length_Field_Pos = 0;
+						TLV_Block_pos = file_pos;
+						Output = TLV_Block_to_Output(Output, TLV_Head);
+						Temp_Buffer = NULL;
+						TLV_Head = NULL;
+						Length_Field_Pos = 0;
+						Length_Field_Size_Bytes = 0;
 						Length = 0;
+						Debug_ReadingStatus(nibble_flags_ptr, Reading_Status);
+						//Need to add in Constructed Data Processing flags here. 
 					}
 
 				}
@@ -373,8 +366,8 @@ int main(int argc, char *argv[]){
 					*Temp = '\0';
 
 
-					if (TLV_Block != NULL) {
-						free(TLV_Block);
+					if (TLV_Head != NULL) {
+						free(TLV_Head);
 					}
 
 				}
@@ -407,12 +400,12 @@ int main(int argc, char *argv[]){
 	if (Reading_Status != 6) {
 		
 		if (Output == NULL) {
-			if (TLV_Block != NULL) {
-				Output = malloc((strlen(TLV_Block) + strlen("\n\n") + 1) * sizeof(char));
-				strcpy(Output, TLV_Block);
+			if (TLV_Head != NULL) {
+				Output = malloc((strlen(TLV_Head) + strlen("\n\n") + 1) * sizeof(char));
+				strcpy(Output, TLV_Head);
 				strcat(Output, "\n\n");
-				TLV_Block = NULL;
-				free(TLV_Block);
+				TLV_Head = NULL;
+				free(TLV_Head);
 			}
 			else {
 				printf("WTFFF!\n");
@@ -421,12 +414,12 @@ int main(int argc, char *argv[]){
 
 		else {
 
-			if (TLV_Block != NULL || Temp_Buffer != NULL || Tag_Def != NULL) {
+			if (TLV_Head != NULL || Temp_Buffer != NULL || Tag_Def != NULL) {
 
 				printf("End of File reached before last TLV Block could be established.\n");
 
-				if (TLV_Block != NULL) {
-					Output = TLV_Block_to_Output(Output, TLV_Block);
+				if (TLV_Head != NULL) {
+					Output = TLV_Block_to_Output(Output, TLV_Head);
 				}
 
 				else {
@@ -467,7 +460,7 @@ int main(int argc, char *argv[]){
 				UnSet_Bit(Processing_Value, nibble_flags_ptr);
 				Set_Bit(Processing_Tag, nibble_flags_ptr);
 				Temp_Buffer = NULL;
-				TLV_Block = NULL;
+				TLV_Head = NULL;
 				Length_Field_Pos = 0;
 				Length = 0;
 				
@@ -475,28 +468,14 @@ int main(int argc, char *argv[]){
 
 			else {
 
-				printf("End of File reached before last TLV Block could be established.\n");
-				Temp = realloc(TLV_Block, (strlen("Unformatted Output:\t") + (strlen(TLV_Block) + strlen(Output) + 1)));
-
-				if (Temp != NULL) {
-					TLV_Block = Temp;
-					Temp = NULL;
-					strcat(Output, "Unformatted Output:\t");
-					strcat(Output, TLV_Block);
-					TLV_Block = NULL;
+				if ((TLV_Block_pos + 1 == file_size)) {
+					printf("Perfect Read!\n");
 				}
 				else {
-					printf("Failed to Realloc Memory\n");
-					return 0;
+					printf("Dump Completed!\n");
 				}
-			}
 
-
-			if ((TLV_Block_pos == file_size)) {
-				printf("Perfect Read!\n");
-			}
-			else {
-				printf("Dump Completed!\n");
+				
 			}
 
 

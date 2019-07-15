@@ -21,14 +21,15 @@
 		char * Definition;
 	}Tag;
 
-	typedef struct TLV_Block {
+	typedef struct TLV_Bloc {
 		char * Tag_Name;
 		char * Tag_Def;
 		char * Length;
 		char * Value;
-		struct TLV_Block * Children;
-		struct TLV_Block * Parent;
-	}TLV_Block;
+		struct TLV_Bloc * Children;
+		struct TLV_Bloc * Parent;
+		struct TLV_Bloc * Head;
+	}TLV_Bloc;
 
 	int Determine_Reading_Status(unsigned int * nibble_flags_ptr, int Invalid_Data_Flag);
 	
