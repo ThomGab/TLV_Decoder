@@ -23,11 +23,15 @@
 
 	typedef struct TLV_Block {
 		char * Tag;
+		char * Tag_Def;
 		char * Length;
 		char * Value;
-		struct TLV_Block * Children;
-		struct TLV_Block * Parent;
+		int Constructed;
 		struct TLV_Block * Head;
+		struct TLV_Block * Parent;
+		struct TLV_Block * Child;
+		struct TLV_Block * Next;
+		struct TLV_Block * Previous;
 	}TLV_Block;
 
 	int Determine_Reading_Status(unsigned int * nibble_flags_ptr, int Invalid_Data_Flag);
@@ -37,13 +41,15 @@
 	int LengthField_Processing(char * input_nibble_str, int Length_Field_Size_Bytes, unsigned int * nibble_flags_ptr);
 	int Length_Processing(char * Temp_Buffer, unsigned int *nibble_flags_ptr, int Length_Field_Size_Bytes);
 	void Value_Processing(char input_nibble, unsigned int * nibble_flags_ptr);
+	void Constructed_Data_Object_Processing(unsigned int * nibble_flags_ptr, TLV_Block *  Active_TLV_Block, TLV_Block * Previous_TLV_Block);
+
 	char * TLV_Block_to_Output(char* Output_ptr, char* TLV_Block_ptr);
 
 	TLV_Block * Create_New_TLV_Block(void);
 
 	unsigned ASCIIHEX_to_DEC(char c);
 	char Clean_Input(char c);
-	char *Find_Tag_Def(char * TagDefOutput, char *SearchTag, Tag InputList[]);
+	void Find_Tag_Def(char ** TagDefOutput, char *SearchTag, Tag InputList[]);
 
 	//debug functions
 	void Debug_ReadingStatus(unsigned int* nibble_flags_ptr, int Reading_Status);
