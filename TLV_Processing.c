@@ -170,6 +170,36 @@ int Length_Processing(char * Temp_Buffer, unsigned int *nibble_flags_ptr, int Le
 	
 void Value_Processing(char input_nibble, unsigned int *nibble_flags);
 
+
+//Only Enters if the active TLV_Object is marked as "Constructed" in the nibble_flags.
+/*void Constructed_Data_Object_Processing(unsigned int * nibble_flags_ptr, TLV_Block *  Active_TLV_Block, TLV_Block * Previous_TLV_Block) {
+
+	//nibble_flags_ptr relate to the active TLV Block
+
+	if (Active_TLV_Block->Head != NULL) {
+		//the Active_TLV_Block is not a Head TLV_Block.
+
+		if (Is_Bit_Set(Processing_Constructed_Data_Object, nibble_flags_ptr) {
+			if (Previous_TLV_Block->Parent != NULL) {
+				//The Active_TLV_Block is an unnested Constructed Object.
+			}
+			}
+		}
+
+		(Active_TLV_Block->Previous)->Child = Active_TLV_Block;
+		Active_TLV_Block->Parent = Previous_TLV_Block;
+	}
+
+	else {
+		//The Head_TLV_Block has an existing Constructed Data Object Child attached to it.
+		
+		//Does the
+		if()
+	}
+
+
+}*/
+
 char * TLV_Block_to_Output(char * Output_ptr, char * TLV_Block_ptr) {
 
 	char * Temp = NULL;
@@ -244,11 +274,11 @@ char Clean_Input(char c){
 
 }
 
-char *Find_Tag_Def(char* TagDefOutput, char *SearchTag, Tag * InputList){
+void Find_Tag_Def(char ** TagDefOutput, char *SearchTag, Tag * InputList){
 	
 	int i, Tag_List_Size; 
 	
-	TagDefOutput = NULL;
+	*TagDefOutput = NULL;
 	
 	Tag_List_Size = SIZE_TAG_LIST;
 	//Tag_List_Size = sizeof(Tag_List)/sizeof(Tag);
@@ -256,13 +286,13 @@ char *Find_Tag_Def(char* TagDefOutput, char *SearchTag, Tag * InputList){
 
 	for (i = 0; i <= Tag_List_Size; i++){
 	
-		if(TagDefOutput == NULL){
+		if(*TagDefOutput == NULL){
 	
 			if (strcmp( (InputList[i].BER_TLV), SearchTag) == 0){
-				TagDefOutput = malloc( sizeof(char) * ( (strlen(InputList[i].Definition)) + 1 ));
-				TagDefOutput = InputList[i].Definition;
+				*TagDefOutput = malloc( sizeof(char) * ( (strlen(InputList[i].Definition)) + 1 ));
+				*TagDefOutput = InputList[i].Definition;
 				printf("Found Tag.\n\t: %s \n", InputList[i].BER_TLV);
-				printf("Found Definition.\n\t: %s \n", TagDefOutput);
+				printf("Found Definition.\n\t: %s \n", *TagDefOutput);
 				printf("Break point 1\n");
 				break;
 			}
@@ -272,15 +302,15 @@ char *Find_Tag_Def(char* TagDefOutput, char *SearchTag, Tag * InputList){
 
 	}
 
-	if (TagDefOutput == NULL) {
-		TagDefOutput = malloc(sizeof(char) * ( (strlen(" - Undefined Tag\n")) + 1));
-		TagDefOutput = " - Undefined Tag\n";
-		return TagDefOutput;
+	if (*TagDefOutput == NULL) {
+		*TagDefOutput = malloc(sizeof(char) * ( (strlen(" - Undefined Tag\n")) + 1));
+		*TagDefOutput = " - Undefined Tag\n";
 	}
 
 	else {
-		return TagDefOutput;
 	}
+
+	return;
 
 }
 
@@ -407,9 +437,11 @@ TLV_Block * Create_New_TLV_Block(void) {
 	New_TLV_Block_ptr->Tag = NULL;
 	New_TLV_Block_ptr->Length = NULL;
 	New_TLV_Block_ptr->Value = NULL;
-	New_TLV_Block_ptr->Children = NULL;
-	New_TLV_Block_ptr->Parent = NULL;
 	New_TLV_Block_ptr->Head = NULL;
+	New_TLV_Block_ptr->Parent = NULL;
+	New_TLV_Block_ptr->Child = NULL;
+	New_TLV_Block_ptr->Next = NULL;
+	New_TLV_Block_ptr->Previous = NULL;
 
 	return New_TLV_Block_ptr;
 
