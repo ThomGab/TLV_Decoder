@@ -33,7 +33,6 @@ int main(int argc, char *argv[]) {
 	int Length_Field_Size_Bytes = 0;
 	int Length_Field_Pos = 0;
 	int * Length_Field_Pos_ptr = &Length_Field_Pos;
-	int Parent_TLV_Block_file_pos = 0;
 
 	int Invalid_Data_Found = 0;
 	int Resized_Array_Complete = 0;
@@ -164,33 +163,103 @@ int main(int argc, char *argv[]) {
 			if (Temp_Buffer != NULL) {
 
 				//Initialising New TLV_Block Object.
-				if (Previous_TLV_Block == NULL) {
-					//If there is no previous TLV_Blocks, then newly created one must be the first Head_TLV_Block (BaseBlock).
+				if (Active_TLV_Block == NULL) {
+					//If this is the first TLV Block, the newly created one must be the first Head_TLV_Block (BaseBlock).
 					Head_TLV_Block = Create_New_TLV_Block();
 					Active_TLV_Block = Head_TLV_Block;
 				}
 
 				else {
-					//There us a Previous TLV Block, and therefore an existing Headblock.
-					Active_TLV_Block = Create_New_TLV_Block();
-					Active_TLV_Block->Head = Head_TLV_Block;
-
-					//Was the previous TLV_Block within a Constructed Object?
-					//If so, is the Active TLV_Block a part of the same Constructed Object?
-
-					//Is the current file position, outside of the range of the Active_Parent Constructed Object?
-					if ((current_file_pos + 1) > (Parent_TLV_Block_file_pos + atoi((Active_Parent_TLV_Block->Length)) + strlen(Active_Parent_TLV_Block->Tag))) {
-						
-						//This is a new Constructed Data Object, and the previous Constructed Data Object has been completely processed.
-						Active_TLV_Block->Parent = (Active_Parent_TLV_Block->Parent)->Parent;
-						(Previous_TLV_Block->Parent)->Next = Active_TLV_Block;
-						Active_Parent_TLV_Block = Active_TLV_Block;
+					//This isn't the first TLV_Block. Should the new one inherit any characteristics from the previous one?
+					if (Previous_TLV_Block == NULL) {
+						Previous_TLV_Block = Active_TLV_Block;
+						Active_TLV_Block = Create_New_TLV_Block();
 					}
+
 					else {
-						//We are in the same Constructed Data Object.
-						Active_TLV_Block->Parent = Active_Parent_TLV_Block;
-						Previous_TLV_Block->Next = Active_TLV_Block;
+						//is the Active_TLV_Block within the constructed template of the previous TLV Block?
+						if ((Previous_TLV_Block->Constructed == 1)) {
+							if (current_file_pos <= Previous_TLV_Block->FilePos_at_EndofBlock) {
+								//The Active TLV_Block has the previous TLV Block as it's Parent.
+								Active_Parent_TLV_Block = Previous_TLV_Block;
+								Previous_TLV_Block->Child = Active_TLV_Block;
+								Active_TLV_Block->Parent = Previous_TLV_Block;
+							}
+							else {
+								//The Active TLV_Block is outside the range of the previous constructed TLV_Block. It must inherit a Parent of a previous block.
+								while (current_file_pos > Active_Parent_TLV_Block->FilePos_at_EndofBlock) {
+									if (Active_Parent_TLV_Block->Parent != NULL) {
+										//If another parent exists, and the Parent to the Active block has not yet been found, move to the next parent.
+										Active_Parent_TLV_Block = Active_Parent_TLV_Block->Parent;
+									}
+									else {
+										//There is no more parents to move to, this TLV_Block must be on the same level as the Head TLV Block (0th level constructed data object).
+										Active_Parent_TLV_Block = NULL;
+										Head_TLV_Block->Next = Active_TLV_Block;
+										Active_TLV_Block->Previous = Head_TLV_Block;
+										Head_TLV_Block = Active_TLV_Block;
+										break;
+									}
+								}
+
+								if (Active_TLV_Block != Head_TLV_Block) {
+									//The Active Parent Object has been found. Current_file_pos is not greater than Active_Parent_TLV_Block.
+									Active_Parent_TLV_Block = Active_Parent_TLV_Block->Parent;
+									Active_TLV_Block->Parent = Active_Parent_TLV_Block;
+								}
+
+								else {
+									printf("We're still in the same constructed Object -> %s\n\n", Active_Parent_TLV_Block->Tag);
+								}
+
+
+							}
+								
+						}
+
+						else {
+							//Previous TLV_Block was a Primitive Object, are we still in range of the active_parent block?
+							if (Active_Parent_TLV_Block != NULL) {
+								if (file_pos <= Active_Parent_TLV_Block->FilePos_at_EndofBlock) {
+									//we're still within this Parent TLV_Block.
+									Active_TLV_Block->Parent = Active_Parent_TLV_Block;
+								}
+								else {
+									//we're outside of this Parent TLV_Block. Are there other parent TLVBlocks/Constructed Data objects to inherit from?
+									while (Active_Parent_TLV_Block->Parent != NULL) {
+										Active_Parent_TLV_Block = Active_Parent_TLV_Block->Parent;
+										if (current_file_pos > Active_Parent_TLV_Block->FilePos_at_EndofBlock) {
+											//we're outside of the range of this constructed object, move to the next parent block
+											Active_Parent_TLV_Block = Active_Parent_TLV_Block->Parent;
+										}
+										else {
+											//we'ere inside the range of this constructed object, inherit the properties of this Active_Parent_Block.
+											Active_TLV_Block->Parent = Active_Parent_TLV_Block;
+											
+											//Does this parent block have any existing children?
+											if (Active_Parent_TLV_Block->Child == NULL) {
+												Active_Parent_TLV_Block->Child = Active_TLV_Block;
+												break;
+											}
+
+											else {
+												//if it does have a child, then find the next->Null of that child, and insert the Active_Block to indicate a shared constructed level/
+												while ((Active_Parent_TLV_Block->Child)->Next != NULL) {
+													Active_TLV_Block->Previous = (Active_Parent_TLV_Block->Child)->Next;
+												}
+
+												Active_TLV_Block->Previous = (Active_Parent_TLV_Block->Child)->Next;
+												(Active_Parent_TLV_Block->Child)->Next = Active_TLV_Block;
+												break;
+											}
+										}
+									}
+								}
+							}
+						}
+
 					}
+
 				}
 
 				//Writing Tag into TLV_Block newly constructed Active_TLV_Block:
@@ -318,6 +387,7 @@ int main(int argc, char *argv[]) {
 
 									UnSet_Bit(Processing_Length, nibble_flags_ptr);
 									Set_Bit(Processing_Value, nibble_flags_ptr);
+									Active_TLV_Block->FilePos_at_EndofBlock = (current_file_pos + Length)-1;
 									Length_Field_Pos = 0;
 
 									free(Temp_Buffer);
@@ -381,16 +451,15 @@ int main(int argc, char *argv[]) {
 						Length_Field_Pos = 0;
 						Length_Field_Size_Bytes = 0;
 						Length = 0;
-						TLV_Block_pos = current_file_pos;
 
 						Active_TLV_Block->Value = malloc(sizeof(char) * (Length + 1));
 
+						//Writing to Active_TLV_Block
 						if (Active_TLV_Block->Value != NULL) {
 
 							strcpy(Active_TLV_Block->Value, Temp_Buffer);
 							free(Temp_Buffer);
 							Temp_Buffer = NULL;
-
 
 						}
 
