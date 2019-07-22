@@ -65,8 +65,8 @@ int main(int argc, char *argv[]) {
 	//Create and write the file content to an array, close the file.
 	source_file_arr = malloc((file_size + 1) * sizeof(char));
 
-	if (source_file_arr == 0) {
-		printf("NAH BRO\n");
+	if (source_file_arr == NULL) {
+		printf("NAH BRO\n");	
 		return 0;
 	}
 
@@ -112,142 +112,145 @@ int main(int argc, char *argv[]) {
 
 		switch (Reading_Status) {
 
-				// Tag Not Completely Read, still evaluting Tag Value nibble by nibble. 
-			case(1):
+			// Tag Not Completely Read, still evaluting Tag Value nibble by nibble. 
+		case(1):
 
-				//Setting up Tag Buffer.
-				if ((Temp_Buffer == NULL)) {
-					Temp_Buffer = malloc(((sizeof * Temp_Buffer) * ((TagField_Size_Bytes * 2) + 1)));
+			//Setting up Tag Buffer.
+			if ((Temp_Buffer == NULL)) {
+				Temp_Buffer = malloc(((sizeof * Temp_Buffer) * ((TagField_Size_Bytes * 2) + 1)));
+
+				if (Temp_Buffer != NULL) {
 					*Temp_Buffer = '\0';
-					//Setting up new Output_String_Replace_me
+				}
+
+				else {
+					printf("Failed to allocate Memory!\n");
+					printf("Exiting like a champ...\n");
+					return 0;
+				}
+
+
+			}
+
+			else {
+				//If B5 and B4 of the first Byte of the Tag suggest a 2 Byte Tag, we have to expand the tag buffer.
+				if (Is_Bit_Set(Processing_Subsequent_Field_FirstNibFlag, nibble_flags_ptr) && Is_Bit_Set(Processing_Subsequent_Field, nibble_flags_ptr)) {
+					printf("We need to Realloc the Tag Buffer");
+					Temp = realloc(Temp_Buffer, ((sizeof(char) * TagField_Size_Bytes * 2) + 1));
+					if (Temp != NULL) {
+						Temp_Buffer = Temp;
+						Temp = NULL;
+					}
+					else {
+						printf("Failed Reallocation of Memory.\n");
+						printf("Exiting...\n");
+						return 0;
+					}
+				}
+				else {
+					printf("No Realloc required Buffer");
+				}
+				//If the Input Data is not invalid, then pass the character to be Processed.
+			}
+
+			Tag_Processing(input_nibble_cleaned, nibble_flags_ptr, TagField_Size_Bytes_ptr);
+			printf("\nReading Status After Tag Processing\n");
+			Debug_ReadingStatus(nibble_flags_ptr, Reading_Status);
+			strcat(Temp_Buffer, input_nibble_str);
+
+			break;
+
+		case(2):
+			if (Temp_Buffer != NULL) {
+
+				//Initialising New TLV_Block Object.
+				if (Previous_TLV_Block == NULL) {
+					//If there is no previous TLV_Blocks, then newly created one must be the first Head_TLV_Block (BaseBlock).
+					Head_TLV_Block = Create_New_TLV_Block();
+					Active_TLV_Block = Head_TLV_Block;
+				}
+
+				else {
+					//There us a Previous TLV Block, and therefore an existing Headblock.
+					Active_TLV_Block = Create_New_TLV_Block();
+					Active_TLV_Block->Head = Head_TLV_Block;
+
+					//Was the previous TLV_Block within a Constructed Object?
+					//If so, is the Active TLV_Block a part of the same Constructed Object?
+
+					//Is the current file position, outside of the range of the Active_Parent Constructed Object?
+					if ((current_file_pos + 1) > (Parent_TLV_Block_file_pos + atoi((Active_Parent_TLV_Block->Length)) + strlen(Active_Parent_TLV_Block->Tag))) {
+						
+						//This is a new Constructed Data Object, and the previous Constructed Data Object has been completely processed.
+						Active_TLV_Block->Parent = (Active_Parent_TLV_Block->Parent)->Parent;
+						(Previous_TLV_Block->Parent)->Next = Active_TLV_Block;
+						Active_Parent_TLV_Block = Active_TLV_Block;
+					}
+					else {
+						//We are in the same Constructed Data Object.
+						Active_TLV_Block->Parent = Active_Parent_TLV_Block;
+						Previous_TLV_Block->Next = Active_TLV_Block;
+					}
+				}
+
+				//Writing Tag into TLV_Block newly constructed Active_TLV_Block:
+				Active_TLV_Block->Tag = malloc(sizeof(Temp_Buffer));
+				if ((Active_TLV_Block->Tag) != NULL) {
+						strcpy((Active_TLV_Block->Tag), Temp_Buffer);
+						free(Temp_Buffer);
+						Temp_Buffer = NULL;
+				}
+
+				//Determining Corresponding Tag Definition and writing it to Active_TLV_BLock:
+				Find_Tag_Def( &(Active_TLV_Block->Tag_Def), Active_TLV_Block->Tag, TagList);
+
+				//Writing Constructed Data Object information to Active Tag_Block:
+				Active_TLV_Block->Constructed = Is_Bit_Set(Processing_Constructed_Data_Object, nibble_flags_ptr);
+
+				Set_Bit(Processing_LengthField, nibble_flags_ptr);
+				Length_Field_Size_Bytes = LengthField_Processing(input_nibble_str, Length_Field_Size_Bytes, nibble_flags_ptr);
+
+				//Need to amend the function above, to pass pointer to Length value. All LengthField Processing should be done within the function. 
+
+				if (Is_Bit_Set(Processing_Length, nibble_flags_ptr)) {
+
+					Length = (ASCIIHEX_to_DEC(input_nibble_cleaned) * 16);
+					Reading_Status = 4;
+					UnSet_Bit(Processing_LengthField, nibble_flags_ptr);
+					Set_Bit(Processing_Length, nibble_flags_ptr);
+
+					//Length Field Processing Complete. Realloc the Output_String_Replace_me Buffer to a size where Length Can be Written.
+					Temp_Buffer = malloc(((Length_Field_Size_Bytes * 2) + 1) * sizeof(char));
+
+					if (Temp_Buffer != NULL) {
+						strcat(Temp_Buffer, input_nibble_str);
+					}
+					else {
+						printf("Allocation Failed!");
+						Reading_Status = 6;
+					}
+
+					Length_Field_Pos++;
 
 				}
 
 				else {
-					//If B5 and B4 of the first Byte of the Tag suggest a 2 Byte Tag, we have to expand the tag buffer.
-					if (Is_Bit_Set(Processing_Subsequent_Field_FirstNibFlag, nibble_flags_ptr) && Is_Bit_Set(Processing_Subsequent_Field, nibble_flags_ptr)) {
-						printf("We need to Realloc the Tag Buffer");
-						Temp = realloc(Temp_Buffer, ((sizeof(char) * TagField_Size_Bytes * 2) + 1));
-						if (Temp != NULL) {
-							Temp_Buffer = Temp;
-							Temp = NULL;
-						}
-						else {
-							printf("Failed Reallocation of Memory.\n");
-							printf("Exiting...\n");
-							return 0;
-						}
-					}
-					else {
-						printf("No Realloc required Buffer");
-					}
-					//If the Input Data is not invalid, then pass the character to be Processed.
-				}
-
-				Tag_Processing(input_nibble_cleaned, nibble_flags_ptr, TagField_Size_Bytes_ptr);
-				printf("\nReading Status After Tag Processing\n");
-				Debug_ReadingStatus(nibble_flags_ptr, Reading_Status);
-				strcat(Temp_Buffer, input_nibble_str);
-
-				break;
-
-			case(2):
-				if (Temp_Buffer != NULL) {
-
-					//Initialising New TLV_Block Object.
-					if (Previous_TLV_Block == NULL) {
-							//If there is no previous TLV_Blocks, then newly created one must be the first Head_TLV_Block (BaseBlock).
-							Head_TLV_Block = Create_New_TLV_Block();
-							Active_TLV_Block = Head_TLV_Block;
-					}
-
-					else {
-							//There us a Previous TLV Block, and therefore an existing Headblock.
-							Active_TLV_Block = Create_New_TLV_Block();
-							Active_TLV_Block->Head = Head_TLV_Block;
-							Active_TLV_Block->Previous = Previous_TLV_Block;
-					}
-					
-					else {
-						//Moving to Next TLV_Block
-						Previous_TLV_Block = Active_TLV_Block;
-						Active_TLV_Block = Create_New_TLV_Block();
-
-						//Was the previous TLV_Block within a Constructed Object?
-						if (Previous_TLV_Block->Parent != NULL) {
-							//If so, is the Active TLV_Block a part of the same Constructed Object?
-							//Is the current file position, outside of the range of the Active_Parent Constructed Object?
-							if ((current_file_pos + 1) > (Parent_TLV_Block_file_pos + atoi((Active_Parent_TLV_Block->Length)) + strlen(Active_Parent_TLV_Block->Tag))) {
-								//This is a new Constructed Data Object, and the previous Constructed Data Object has been completely processed.
-								Active_TLV_Block->Parent = (Active_Parent_TLV_Block->Parent)->Parent;
-								(Previous_TLV_Block->Parent)->Next = Active_TLV_Block;
-								Active_Parent_TLV_Block = Active_TLV_Block;
-							}
-							else {
-								//We are in the same Constructed Data Object.
-								Active_TLV_Block->Parent = Active_Parent_TLV_Block;
-								Previous_TLV_Block->Next = Active_TLV_Block;
-							}
-						}
-
-						//Previous TLV_Block has no Parent's, and is therefore a new Head_Block.
-						else {
-							Head_TLV_Block->Next = Active_TLV_Block;
-							Active_TLV_Block = Head_TLV_Block;
-						}
-
-					}
-
-					//Determining Tag Definition:
-					printf("Tag recieved, Beginning Lookup %s\n\n", Temp_Buffer);
-
-					//Writing Tag into TLV_Block:
-					Active_TLV_Block->Tag = malloc(sizeof(Temp_Buffer));
-					if ((Active_TLV_Block->Tag) != NULL) {
-						strcpy((Active_TLV_Block->Tag), Temp_Buffer);
-						free(Temp_Buffer);
-						Temp_Buffer = NULL;
-					}
-
-					Find_Tag_Def( &(Active_TLV_Block->Tag_Def), Active_TLV_Block->Tag, TagList);
-
-					Set_Bit(Processing_LengthField, nibble_flags_ptr);
-					Length_Field_Size_Bytes = LengthField_Processing(input_nibble_str, Length_Field_Size_Bytes, nibble_flags_ptr);
-
-					//Need to amend the function above, to pass pointer to Length value. All LengthField Processing should be done within the function. 
-
-					if (Is_Bit_Set(Processing_Length, nibble_flags_ptr)) {
-
-						Length = (ASCIIHEX_to_DEC(input_nibble_cleaned) * 16);
-						Reading_Status = 4;
-						UnSet_Bit(Processing_LengthField, nibble_flags_ptr);
-						Set_Bit(Processing_Length, nibble_flags_ptr);
-
-						//Length Field Processing Complete. Realloc the Output_String_Replace_me Buffer to a size where Length Can be Written.
-						Temp_Buffer = malloc(((Length_Field_Size_Bytes * 2) + 1) * sizeof(char));
-
-						if (Temp_Buffer != NULL) {
-							strcat(Temp_Buffer, input_nibble_str);
-						}
-						else {
-							printf("Allocation Failed!");
-							Reading_Status = 6;
-						}
-
-						Length_Field_Pos++;
-
-					}
-
-					else {
 
 						//the first nibble of the Length Field is 8 or higher, indicating a length field coded over multiple bytes.
-						Reading_Status = 3;
-
-					}
-					//First nibble of Length Field has been determined, move to the second to complete length processing.
+					Reading_Status = 3;
 
 				}
-				break;
+					//First nibble of Length Field has been determined, move to the second to complete length processing.
+
+			}
+
+			else {
+				printf("Temp Buffer is equal to NULL!\n");
+				printf("Exiting...\n");
+				return 0;
+			}
+
+			break;
 
 			case(3):
 				//Still determining Size of Length Field. 
@@ -258,6 +261,7 @@ int main(int argc, char *argv[]) {
 					//Length Field Processing Complete, Reallocate the Output_String_Replace_me Buffer so it can be prepared to write the length Value.
 
 					if (Temp_Buffer != NULL) {
+
 						Temp_Buffer = realloc(Temp_Buffer, (strlen(Temp_Buffer) + (Length_Field_Size_Bytes * 2) + 1) * sizeof(char));
 
 						if (Temp_Buffer != NULL) {
@@ -415,6 +419,13 @@ int main(int argc, char *argv[]) {
 					printf("Creating Output Buffer.\nInvalid data position is marked as \"#\" in output).\n");
 					Invalid_Data_Found = 1;
 					Output = malloc(sizeof(char) * (file_size + 1));
+
+					if (Output == NULL) {
+						printf("Error Allocating memory to Output...\n");
+						printf("Exiting...\n");
+						return 0;
+					}
+
 					Temp = Output;
 
 					for (y = 0; y < current_file_pos; y++) {
