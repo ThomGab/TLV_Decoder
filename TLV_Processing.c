@@ -284,17 +284,24 @@ void Find_Tag_Def(char ** TagDefOutput, char *SearchTag, Tag * InputList){
 	//Tag_List_Size = sizeof(Tag_List)/sizeof(Tag);
 	printf(" Size of Tag_List is %d\n\n", Tag_List_Size);
 
-	for (i = 0; i <= Tag_List_Size; i++){
+	for (i = 0; i < Tag_List_Size; i++){
 	
 		if(*TagDefOutput == NULL){
 	
 			if (strcmp( (InputList[i].BER_TLV), SearchTag) == 0){
 				*TagDefOutput = malloc( sizeof(char) * ( (strlen(InputList[i].Definition)) + 1 ));
-				*TagDefOutput = InputList[i].Definition;
-				printf("Found Tag.\n\t: %s \n", InputList[i].BER_TLV);
-				printf("Found Definition.\n\t: %s \n", *TagDefOutput);
-				printf("Break point 1\n");
-				break;
+				if (*TagDefOutput != NULL) {
+					*TagDefOutput = InputList[i].Definition;
+					printf("Found Tag.\n\t: %s \n", InputList[i].BER_TLV);
+					printf("Found Definition.\n\t: %s \n", *TagDefOutput);
+					printf("Break point 1\n");
+					break;
+				}
+				else {
+					printf("Could not allocated memory for Tag_Def_Output.\n");
+					printf("Exiting...\n");
+					return;
+				}
 			}
 			else{
 			}
@@ -304,7 +311,14 @@ void Find_Tag_Def(char ** TagDefOutput, char *SearchTag, Tag * InputList){
 
 	if (*TagDefOutput == NULL) {
 		*TagDefOutput = malloc(sizeof(char) * ( (strlen(" - Undefined Tag\n")) + 1));
-		*TagDefOutput = " - Undefined Tag\n";
+		if (*TagDefOutput != NULL) {
+			*TagDefOutput = " - Undefined Tag\n";
+		}
+		else {
+			printf("Could not allocated memory for Tag_Def_Output.\n");
+			printf("Exiting...\n");
+			return ;
+		}
 	}
 
 	else {
@@ -434,16 +448,27 @@ TLV_Block * Create_New_TLV_Block(void) {
 
 	TLV_Block * New_TLV_Block_ptr = malloc(sizeof(TLV_Block));
 
-	New_TLV_Block_ptr->Tag = NULL;
-	New_TLV_Block_ptr->Length = NULL;
-	New_TLV_Block_ptr->Value = NULL;
-	New_TLV_Block_ptr->Head = NULL;
-	New_TLV_Block_ptr->Parent = NULL;
-	New_TLV_Block_ptr->Child = NULL;
-	New_TLV_Block_ptr->Next = NULL;
-	New_TLV_Block_ptr->Previous = NULL;
+	if (New_TLV_Block_ptr != NULL) {
 
-	return New_TLV_Block_ptr;
+		New_TLV_Block_ptr->Tag = NULL;
+		New_TLV_Block_ptr->Tag_Def = NULL;
+		New_TLV_Block_ptr->Length = NULL;
+		New_TLV_Block_ptr->Value = NULL;
+		New_TLV_Block_ptr->Constructed = 0;
+		New_TLV_Block_ptr->FilePos_at_EndofBlock = 0;
+		New_TLV_Block_ptr->Head = NULL;
+		New_TLV_Block_ptr->Parent = NULL;
+		New_TLV_Block_ptr->Child = NULL;
+		New_TLV_Block_ptr->Next = NULL;
+		New_TLV_Block_ptr->Previous = NULL;
+
+		return New_TLV_Block_ptr;
+	}
+
+	else {
+		printf("Unable to allocate memory to TLV Block");
+		return NULL;
+	}
 
 }
 

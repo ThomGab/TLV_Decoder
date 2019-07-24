@@ -26,7 +26,8 @@
 		char * Tag_Def;
 		char * Length;
 		char * Value;
-		int Constructed;
+		unsigned int Constructed;
+		unsigned int FilePos_at_EndofBlock;
 		struct TLV_Block * Head;
 		struct TLV_Block * Parent;
 		struct TLV_Block * Child;
