@@ -114,7 +114,7 @@ int LengthField_Processing(char * input_nibble_str, int LengthFieldValue, unsign
 
 		if( LengthFieldValue == 0 && (!Is_Bit_Set(Processing_Subsequent_Field,nibble_flags)) ){
 
-			if( ( (N1_B4 && input_nibble_int) == 1) ) {
+			if( ( (N1_B4 & input_nibble_int) == 1) ) {
 				//then it's a Multiple byte length field, the next nibble is the length value in Bytes.
 				Set_Bit(Processing_Subsequent_Field, nibble_flags); // Using this as a Marker for Length Field Values with bit 8 set.
 				//Value "7F" in first byte of length field translates to One Bye Length Field, with 127 BYTES in value field.
@@ -200,49 +200,88 @@ void Value_Processing(char input_nibble, unsigned int *nibble_flags);
 
 }*/
 
-char * TLV_Block_to_Output(char * Output_ptr, char * TLV_Block_ptr) {
+char * Print_Output(TLV_Block * Final_TLV_Block_ptr, char * Output_ptr) {
 
-	char * Temp = NULL;
+	//Navigate to the first HeadBlock
 
-	if (Output_ptr == NULL) {
-		Temp = malloc( ((strlen(TLV_Block_ptr) + 1) + (strlen("\n\n") + 1)) * sizeof(char) );
+	TLV_Block* Active_TLV_Block = Final_TLV_Block_ptr;
+	unsigned int i = 0;
+	int Finished = 0;
+	char format_string[5];
 
-		if (Temp != NULL) {
-			Output_ptr = Temp;
-			Temp = NULL;
-			*Output_ptr = '\0';
-			strcat(Output_ptr, TLV_Block_ptr);
-			strcat(Output_ptr, "\n\n");
-			TLV_Block_ptr = NULL;
-			return Output_ptr;
+	format_string[0] = '\0';
 
-		}
-
-		else {
-			printf("Failed to Allocate Memory to Output.\n");
-			printf("Exiting...\n\n");
-			return 0;
-		}
+	while (Active_TLV_Block->Head != NULL) {
+		Active_TLV_Block = Active_TLV_Block->Head;
 	}
 
-	else {
-		Temp = realloc(Output_ptr, ((( (strlen(Output_ptr) + 1) + (strlen(TLV_Block_ptr) + 1) + (strlen("\n") + 1) ) * sizeof(char)) ));
-		if (Temp != NULL) {
-			Output_ptr = Temp;
-			Temp = NULL;
-			strcat(Output_ptr, TLV_Block_ptr);
-			strcat(Output_ptr, "\n");
-			TLV_Block_ptr = NULL;
-			return Output_ptr;
+	//First Headblock reached, begin writing to output.
+	while (Finished != 1) {
+
+		if (i != Active_TLV_Block->Depth) {
+			for (i = 0; i < Active_TLV_Block->Depth; i++) {
+				strcat(format_string, "\t");
+			}
+		}
+
+		strcat(Output_ptr, format_string);
+		strcat(Output_ptr, "Tag:");
+		strcat(Output_ptr, Active_TLV_Block->Tag);
+		strcat(Output_ptr, Active_TLV_Block->Tag_Def);
+		strcat(Output_ptr, "\n");
+		strcat(Output_ptr, format_string);
+		strcat(Output_ptr, "Length:");
+		strcat(Output_ptr, Active_TLV_Block->Length);
+		strcat(Output_ptr, "\n");
+		strcat(Output_ptr, format_string);
+		
+		if (Active_TLV_Block->Constructed == 1) {
+			if (Active_TLV_Block->Child != NULL) {
+				Active_TLV_Block = Active_TLV_Block->Child;
+			}
+			else {
+				printf("Error, Constructed Object has no Children. Moving to next constructed Object instead.\n");
+				if (Active_TLV_Block->Next != NULL) {
+					Active_TLV_Block = Active_TLV_Block->Next;
+				}
+
+				else {
+					printf("Error, Constructed Object has no Next. Moving to parent Object instead.\n");
+					if (Active_TLV_Block->Parent != NULL) {
+						Active_TLV_Block = Active_TLV_Block->Parent;
+					}
+
+					else {
+						printf("File Processing Complete!\n");
+						Finished = 1;
+					}
+				}
+			}
 		}
 		else {
-			printf("Failed to rellocate Memory.\n");
-			printf("Exiting...");
-			return 0;
-		}
-	}
-	//Constructed Data Object processing here.
+			strcat(Output_ptr, "Value:");
+			strcat(Output_ptr, Active_TLV_Block->Value);
 
+			if ( Active_TLV_Block->Next != NULL ){
+				Active_TLV_Block = Active_TLV_Block->Next;
+			}
+			else {
+				if ((Active_TLV_Block->Parent)->Next != NULL) {
+					Active_TLV_Block = Active_TLV_Block->Parent;
+				}
+				else {
+					printf("File Processing Compelete!\n");
+					Finished = 1;
+				}
+			}
+		}
+
+		strcat(Output_ptr, "\n");
+		*format_string = '\0';
+
+	}
+
+	return Output_ptr;
 }
 
 unsigned int ASCIIHEX_to_DEC(char c){
@@ -444,7 +483,7 @@ int Determine_Reading_Status(unsigned int* nibble_flags, int Invalid_Data_Flag){
 	return Reading_Status;
 }
 
-TLV_Block * Create_New_TLV_Block(void) {
+TLV_Block * Create_New_TLV_Block(int Depth, TLV_Block * Head_TLV_Block) {
 
 	TLV_Block * New_TLV_Block_ptr = malloc(sizeof(TLV_Block));
 
@@ -456,7 +495,8 @@ TLV_Block * Create_New_TLV_Block(void) {
 		New_TLV_Block_ptr->Value = NULL;
 		New_TLV_Block_ptr->Constructed = 0;
 		New_TLV_Block_ptr->FilePos_at_EndofBlock = 0;
-		New_TLV_Block_ptr->Head = NULL;
+		New_TLV_Block_ptr->Depth = Depth;
+		New_TLV_Block_ptr->Head = Head_TLV_Block;
 		New_TLV_Block_ptr->Parent = NULL;
 		New_TLV_Block_ptr->Child = NULL;
 		New_TLV_Block_ptr->Next = NULL;

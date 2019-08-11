@@ -28,6 +28,7 @@
 		char * Value;
 		unsigned int Constructed;
 		unsigned int FilePos_at_EndofBlock;
+		unsigned int Depth;
 		struct TLV_Block * Head;
 		struct TLV_Block * Parent;
 		struct TLV_Block * Child;
@@ -44,9 +45,9 @@
 	void Value_Processing(char input_nibble, unsigned int * nibble_flags_ptr);
 	void Constructed_Data_Object_Processing(unsigned int * nibble_flags_ptr, TLV_Block *  Active_TLV_Block, TLV_Block * Previous_TLV_Block);
 
-	char * TLV_Block_to_Output(char* Output_ptr, char* TLV_Block_ptr);
+	char * Print_Output(TLV_Block* TLV_Block_ptr, char* Output_ptr);
 
-	TLV_Block * Create_New_TLV_Block(void);
+	TLV_Block * Create_New_TLV_Block(int Depth, TLV_Block * Head_TLV_Block);
 
 	unsigned ASCIIHEX_to_DEC(char c);
 	char Clean_Input(char c);
