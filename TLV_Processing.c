@@ -220,7 +220,7 @@ char * Print_Output(TLV_Block * Final_TLV_Block_ptr, char * Output_ptr) {
 
 		if (i != Active_TLV_Block->Depth) {
 			for (i = 0; i < Active_TLV_Block->Depth; i++) {
-				strcat(format_string, "\t");
+				format_string[i] = '\t';
 			}
 		}
 
@@ -261,13 +261,20 @@ char * Print_Output(TLV_Block * Final_TLV_Block_ptr, char * Output_ptr) {
 		else {
 			strcat(Output_ptr, "Value:");
 			strcat(Output_ptr, Active_TLV_Block->Value);
+			strcat(Output_ptr, "\n");
 
 			if ( Active_TLV_Block->Next != NULL ){
 				Active_TLV_Block = Active_TLV_Block->Next;
 			}
 			else {
-				if ((Active_TLV_Block->Parent)->Next != NULL) {
-					Active_TLV_Block = Active_TLV_Block->Parent;
+				if (Active_TLV_Block->Parent != NULL) {
+					if ((Active_TLV_Block->Parent)->Next != NULL) {
+						Active_TLV_Block = Active_TLV_Block->Parent;
+					}
+					else {
+						printf("File Processing Compelete!\n");
+						Finished = 1;
+					}
 				}
 				else {
 					printf("File Processing Compelete!\n");
@@ -277,7 +284,9 @@ char * Print_Output(TLV_Block * Final_TLV_Block_ptr, char * Output_ptr) {
 		}
 
 		strcat(Output_ptr, "\n");
-		*format_string = '\0';
+		
+		memset(format_string, '\0', sizeof(format_string));
+		i = 0;
 
 	}
 
