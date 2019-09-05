@@ -6,4 +6,8 @@ ToDo
 2) Create a TLV_Block structure, with child and parent flags. <- Done
 
 3) Use the TLV_Block structure mentioned above to implemented constructed data objects.
- <Partially done.
+ <Done
+ 
+ 4) Add error handling for bad/messed up data.
+ 
+ 5) Refactor code so it's legible by another human being.
