@@ -205,6 +205,7 @@ char * Print_Output(TLV_Block * Final_TLV_Block_ptr, char * Output_ptr) {
 	//Navigate to the first HeadBlock
 
 	TLV_Block* Active_TLV_Block = Final_TLV_Block_ptr;
+	TLV_Block* Active_Head_TLV_Block = NULL;
 	unsigned int i = 0;
 	int Finished = 0;
 	char format_string[5];
@@ -216,7 +217,8 @@ char * Print_Output(TLV_Block * Final_TLV_Block_ptr, char * Output_ptr) {
 	}
 
 	//First Headblock reached, begin writing to output.
-	while (Finished != 1) {
+	Active_Head_TLV_Block = Active_TLV_Block;
+	while ((Finished != 1) && (Active_Head_TLV_Block != NULL)) {
 
 		if (i != Active_TLV_Block->Depth) {
 			for (i = 0; i < Active_TLV_Block->Depth; i++) {
@@ -252,6 +254,8 @@ char * Print_Output(TLV_Block * Final_TLV_Block_ptr, char * Output_ptr) {
 					}
 
 					else {
+						Active_Head_TLV_Block = Active_Head_TLV_Block->Next;
+						Active_TLV_Block = Active_Head_TLV_Block;
 						printf("File Processing Complete!\n");
 						Finished = 1;
 					}
@@ -269,16 +273,26 @@ char * Print_Output(TLV_Block * Final_TLV_Block_ptr, char * Output_ptr) {
 			else {
 				if (Active_TLV_Block->Parent != NULL) {
 					if ((Active_TLV_Block->Parent)->Next != NULL) {
-						Active_TLV_Block = Active_TLV_Block->Parent;
+						Active_TLV_Block = (Active_TLV_Block->Parent)->Next;
 					}
 					else {
+						Active_Head_TLV_Block = Active_Head_TLV_Block->Next;
+						Active_TLV_Block = Active_Head_TLV_Block;
 						printf("File Processing Compelete!\n");
 						Finished = 1;
 					}
 				}
 				else {
-					printf("File Processing Compelete!\n");
-					Finished = 1;
+					if ( Final_TLV_Block_ptr != Active_TLV_Block) {
+						Active_Head_TLV_Block = Active_Head_TLV_Block->Next;
+						Active_TLV_Block = Active_Head_TLV_Block;
+						printf("File Processing Compelete!\n");
+						Finished = 1;
+					}
+					else {
+						printf("File Processing Compelete!\n");
+						Finished = 1;
+					}
 				}
 			}
 		}
