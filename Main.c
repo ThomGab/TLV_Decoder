@@ -1,4 +1,3 @@
-#define _CRT_SECURE_NO_WARNINGS
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -46,13 +45,11 @@ int main(int argc, char* argv[]) {
 
 	//Buffers
 	char* Temp_Buffer = NULL;
-	char* Output_String_Replace_me = NULL;
 	TLV_Block* Head_TLV_Block = NULL;
 	TLV_Block* Active_TLV_Block = NULL;
 	TLV_Block* Active_Parent_TLV_Block = NULL;
 	TLV_Block* Previous_TLV_Block = NULL;
-	char Output[1000];
-	char * Output_ptr = &Output;
+	char * Output = NULL;
 	char * Temp;
 
 	//Verify Input File and Establish it's size in Nibbles.
@@ -103,13 +100,14 @@ int main(int argc, char* argv[]) {
 
 		input_nibble_str[0] = input_nibble_cleaned;
 		input_nibble_str[1] = '\0';
-
+		
 		printf("INPUT CHARACTER IS CURRENTLY: %c\n", input_nibble_cleaned);
 		printf("IS IT FIRST NIBBLE? %d\n\n", Is_Bit_Set(Processing_First_Nibble, nibble_flags_ptr));
 
 		//Invalid Data Check
 		if ((input_nibble_cleaned == '#') || (Invalid_Data_Found == 1)) {
 			Reading_Status = 6;
+			Invalid_Data_Found = 1;
 		}
 
 		ReadyforNextNibble = 0;
@@ -162,145 +160,146 @@ int main(int argc, char* argv[]) {
 				break;
 
 				case(2):
-					if (Temp_Buffer != NULL) {
+				if (Temp_Buffer != NULL) {
 
-						//Are there any existing TLV Blocks?
-						if (Active_TLV_Block != NULL || Previous_TLV_Block != NULL) {
+					//Are there any existing TLV Blocks?
+					if (Active_TLV_Block == NULL) {
+						//This is the first TLV Block, and therefore is the head of the linked list. (Head_TLV_Block).
+						Active_TLV_Block = Create_New_TLV_Block(Depth, Head_TLV_Block);
+						Head_TLV_Block = Active_TLV_Block;
+						Active_TLV_Block->Head = NULL;
+					}
 
+					else {
+						//Are there any previous TLV Blocks?
+						if (Previous_TLV_Block == NULL) {
+							//The Active TLV Block is the First TLV Block, there is nothing to inherit characteristics from.
 							Previous_TLV_Block = Active_TLV_Block;
-							Active_TLV_Block = Create_New_TLV_Block(Depth, Head_TLV_Block);
+							//Active_TLV_Block = Create_New_TLV_Block(Depth, Head_TLV_Block);
+						}
+					}
 
+					if ((Active_TLV_Block != NULL) && (Previous_TLV_Block != NULL)) {
+
+						if (Active_TLV_Block != Previous_TLV_Block) {
+							Previous_TLV_Block = Active_TLV_Block;
+							Active_TLV_Block = NULL;
+						}
+
+						//An Active TLV Block exists, and a previous TLV Block. there could be characterisitcs that have to be inherited from the previous block.
+						//Checking for constructed object Nesting/Inheritance.
+						//Is the Active_TLV_Block within the constructed template of the previous TLV Block?
+						if ((Previous_TLV_Block->Constructed == 1)) {
+							if (current_file_pos <= Previous_TLV_Block->FilePos_at_EndofBlock) {
+								//The Active TLV_Block is within the Constructed Object range of the previous block. Therefore has the previous TLV Block as it's Parent.
+								Depth = Depth + 1;
+								Active_Parent_TLV_Block = Previous_TLV_Block;
+								Active_TLV_Block = Create_New_TLV_Block(Depth, Head_TLV_Block);
+								Previous_TLV_Block->Child = Active_TLV_Block;
+								Active_TLV_Block->Parent = Active_Parent_TLV_Block;
+							}
+							else {
+								//The Active TLV_Block is outside the range of the previous constructed TLV_Block. Are there other constructed objects that it is a part of?
+								Depth = Active_Parent_TLV_Block->Depth;
+								while (current_file_pos > Active_Parent_TLV_Block->FilePos_at_EndofBlock) {
+									if (Active_Parent_TLV_Block->Parent != NULL) {
+										//If another parent exists, and the Parent to the Active block has not yet been found, move to the next parent.
+										Active_Parent_TLV_Block = Active_Parent_TLV_Block->Parent;
+
+										//Is the Active TLV Block within the constructed range of this object?
+										if (current_file_pos <= Active_Parent_TLV_Block->FilePos_at_EndofBlock) {
+											//if it is, then this parent is a constructed data object that contains the active TLV Block 
+											Active_TLV_Block->Parent = Active_Parent_TLV_Block;
+										}
+									}
+									else {
+										//There is no more parents to move to, this TLV_Block must be on the same level as the Head TLV Block (0th level constructed data object).
+										Active_Parent_TLV_Block = NULL;
+										Depth = 0;
+										Head_TLV_Block->Next = Active_TLV_Block;
+										Active_TLV_Block->Previous = Head_TLV_Block;
+										Head_TLV_Block = Active_TLV_Block;
+										break;
+									}
+								}
+							}
 						}
 
 						else {
-
-							Active_TLV_Block = Create_New_TLV_Block(Depth, Head_TLV_Block);
-							Head_TLV_Block = Active_TLV_Block;
-
-						}
-
-						if (Previous_TLV_Block != NULL) {
-							//An Active TLV Block exists, and a previous TLV Block. there could be characterisitcs that have to be inherited from the previous block.
-							//Checking for constructed object Nesting/Inheritance.
-							//Is the Active_TLV_Block within the constructed template of the previous TLV Block?
-							if ((Previous_TLV_Block->Constructed == 1)) {
-								if (current_file_pos <= Previous_TLV_Block->FilePos_at_EndofBlock) {
-									//The Active TLV_Block is within the Constructed Object range of the previous block. Therefore has the previous TLV Block as it's Parent.
-									Active_Parent_TLV_Block = Previous_TLV_Block;
-									Active_TLV_Block = Create_New_TLV_Block((Previous_TLV_Block->Depth) + 1, Head_TLV_Block);
-									Previous_TLV_Block->Child = Active_TLV_Block;
+							//The Previous TLV_Block was a Primitive Object, are we within any existing constructed/parent objects?
+							if (Active_Parent_TLV_Block != NULL) {
+								if (current_file_pos <= Active_Parent_TLV_Block->FilePos_at_EndofBlock) {
+									//These two TLV Blocks share the same Parent TLV_Block.
+									Active_TLV_Block = Create_New_TLV_Block(Depth, Head_TLV_Block);
 									Active_TLV_Block->Parent = Active_Parent_TLV_Block;
+									Previous_TLV_Block->Next = Active_TLV_Block;
+									Active_TLV_Block->Previous = Previous_TLV_Block;
 								}
+
 								else {
-									//The Active TLV_Block is outside the range of the previous constructed TLV_Block. Are there other constructed objects that it is a part of?
-									if (Active_Parent_TLV_Block != NULL) {
-										while (current_file_pos > Active_Parent_TLV_Block->FilePos_at_EndofBlock) {
-											if (Active_Parent_TLV_Block->Parent != NULL) {
-												//If another parent exists, and the Parent to the Active block has not yet been found, move to the next parent.
-												Active_Parent_TLV_Block = Active_Parent_TLV_Block->Parent;
-												//Is the Active TLV Block within the constructed range of this object?
-												if (current_file_pos <= Active_Parent_TLV_Block->FilePos_at_EndofBlock) {
-													//if it is, then this parent is a constructed data object that contains the active TLV Block 
-													Active_TLV_Block->Parent = Active_Parent_TLV_Block;
-													Active_TLV_Block->Depth = Active_TLV_Block->Parent->Depth + 1;
-												}
+									//we're outside of this Parent TLV_Block. Are there other parent TLVBlocks/Constructed Data objects to inherit from?
+									while (Active_Parent_TLV_Block->Parent != NULL) {
+										Active_Parent_TLV_Block = Active_Parent_TLV_Block->Parent;
+										if (current_file_pos > Active_Parent_TLV_Block->FilePos_at_EndofBlock) {
+											//we're outside of the range of this constructed object, move to the next parent block
+											Active_Parent_TLV_Block = Active_Parent_TLV_Block->Parent;
+										}
+										else {
+											//we'ere inside the range of this constructed object, inherit the properties of this Active_Parent_Block.
+											Active_TLV_Block->Parent = Active_Parent_TLV_Block;
+
+											//Does this parent block have any existing children?
+											if (Active_Parent_TLV_Block->Child == NULL) {
+												Active_Parent_TLV_Block->Child = Active_TLV_Block;
+												break;
 											}
+
 											else {
-												//There is no more parents to move to, this TLV_Block must be on the same level as the Head TLV Block (0th level constructed data object).
-												Active_Parent_TLV_Block = NULL;
-												Head_TLV_Block->Next = Active_TLV_Block;
-												Active_TLV_Block->Previous = Head_TLV_Block;
-												Head_TLV_Block = Active_TLV_Block;
-												Active_TLV_Block->Depth = 0;
+												//if it does have a child, then find the next->Null of that child, and insert the Active_Block to indicate a shared constructed level.
+												while ((Active_Parent_TLV_Block->Child)->Next != NULL) {
+													Active_TLV_Block->Previous = (Active_Parent_TLV_Block->Child)->Next;
+												}
+
+												Active_TLV_Block->Previous = (Active_Parent_TLV_Block->Child)->Next;
+												(Active_Parent_TLV_Block->Child)->Next = Active_TLV_Block;
 												break;
 											}
 										}
 									}
 
-									else {
-										//There are no more parents to move to, this TLV_Block must be on the same level as the Head TLV Block (0th level constructed data object).
-										Active_Parent_TLV_Block = NULL;
-										Head_TLV_Block->Next = Active_TLV_Block;
-										Active_TLV_Block->Previous = Head_TLV_Block;
-										Head_TLV_Block = Active_TLV_Block;
-										Active_TLV_Block->Depth = 0;
-										break;
+									//if no parent has been found, this is a header level primiive
+									if (Active_Parent_TLV_Block->Parent == NULL) {
+
 									}
 								}
 							}
-
+							//The Active_Parent_TLV_Block is NULL, this Active_TLV_Block is not contained by any Constructed Data objects, must be a Headblock.
 							else {
-								//The Previous TLV_Block was a Primitive Object, are we within any existing constructed/parent objects?
-								if (Active_Parent_TLV_Block != NULL) {
-									//There are existing constructed object, are we within it?
-									if (current_file_pos <= Active_Parent_TLV_Block->FilePos_at_EndofBlock) {
-										//These two TLV Blocks share the same Parent TLV_Block.
-										Active_TLV_Block = Create_New_TLV_Block((Active_Parent_TLV_Block->Depth + 1), Head_TLV_Block);
-										Active_TLV_Block->Parent = Active_Parent_TLV_Block;
-										Previous_TLV_Block->Next = Active_TLV_Block;
-										Active_TLV_Block->Previous = Previous_TLV_Block;
-									}
-									else {
-										//we're outside of this Parent TLV_Block. Are there other parent TLV Blocks/Constructed Data objects to inherit from?
-										while (Active_Parent_TLV_Block != NULL) {
-											if (current_file_pos > Active_Parent_TLV_Block->FilePos_at_EndofBlock) {
-												//we're outside of the range of this constructed object, move to the next parent block
-												Active_Parent_TLV_Block = Active_Parent_TLV_Block->Parent;
-											}
-											else {
-												//we'ere inside the range of this constructed object, inherit the properties of this Active_Parent_Block.
-												Active_TLV_Block->Parent = Active_Parent_TLV_Block;
-												//Does this parent block have any existing children?
-												if (Active_Parent_TLV_Block->Child == NULL) {
-													Active_Parent_TLV_Block->Child = Active_TLV_Block;
-													break;
-												}
-												else {
-													//if it does have a child, then find the next->Null of that child, and insert the Active_Block to indicate a shared constructed level.
-													while ((Active_Parent_TLV_Block->Child)->Next != NULL) {
-														Active_TLV_Block->Previous = (Active_Parent_TLV_Block->Child)->Next;
-													}
-													Active_TLV_Block->Previous = (Active_Parent_TLV_Block->Child)->Next;
-													(Active_Parent_TLV_Block->Child)->Next = Active_TLV_Block;
-													break;
-												}
-											}
-										}
-										//if no parent has been found, this is a header level primitive object.
-										if (Active_Parent_TLV_Block == NULL) {
-											Active_TLV_Block = Create_New_TLV_Block(0, Head_TLV_Block);
-											while (Head_TLV_Block->Next != NULL) {
-												Head_TLV_Block = Head_TLV_Block->Next;
-											}
-											Active_TLV_Block->Previous = Head_TLV_Block;
-											Head_TLV_Block->Next = Active_TLV_Block;
-											Head_TLV_Block = Active_TLV_Block;
-											Active_TLV_Block->Depth = 0;
-										}
-									}
-								}
-								//The Active_Parent_TLV_Block is NULL, this Active_TLV_Block is not contained by any Constructed Data objects, must be a Headblock.
-								else {
-									Active_TLV_Block->Head = Head_TLV_Block;
-									Active_TLV_Block->Depth = 0;
-									Active_TLV_Block->Previous = Previous_TLV_Block;
-									Previous_TLV_Block->Next = Active_TLV_Block;
-									Head_TLV_Block = Active_TLV_Block;
-								}
+
+								Active_TLV_Block->Next = Create_New_TLV_Block(Depth, Head_TLV_Block);
+								Active_TLV_Block = Active_TLV_Block->Next;
+								Active_TLV_Block->Previous = Previous_TLV_Block;
+								Head_TLV_Block = Active_TLV_Block;
 							}
-
 						}
 
-						else {
-							printf("Initialising Tag List\n");
-						}
 					}
+
+					else {
+						printf("Narda\n.");
+					}
+				}
+
+				else{
+							printf("Temp Buffer is equal to NULL!\n");
+							printf("Exiting...\n");
+							return 0;
+				}
 
 			
 
 			//Writing Tag into TLV_Block newly constructed Active_TLV_Block:
 			Active_TLV_Block->Tag = malloc(sizeof(Temp_Buffer));
-			
 			if ((Active_TLV_Block->Tag) != NULL) {
 				strcpy((Active_TLV_Block->Tag), Temp_Buffer);
 				free(Temp_Buffer);
@@ -488,6 +487,41 @@ int main(int argc, char* argv[]) {
 
 				break;
 
+			case(6):
+				if (y == 0) {
+
+					if (Output == NULL) {
+						Output = malloc((strlen(source_file_arr) + 1) * sizeof(char));
+					}
+
+					else {
+						free(Output);
+						Output = NULL;
+						Output = malloc((strlen(source_file_arr) + 1) * sizeof(char));
+					}
+
+					for (y = 0; y < current_file_pos; y++) {
+						Output[y] = source_file_arr[y];
+					}
+
+					Output[y] = '\0';
+					strcat(Output, input_nibble_str);
+					
+				}
+				else {
+					if (input_nibble_cleaned == '#') {
+						strcat(Output, "#");
+					}
+					else {
+						strcat(Output, input_nibble_str);
+						printf("%s", Output);
+					}
+				}
+
+				ReadyforNextNibble = 1;
+
+				break;
+
 			default:
 				printf("Unhandled State.\n");
 				break;
@@ -504,11 +538,17 @@ int main(int argc, char* argv[]) {
 
 	printf("OUTPUTS:\n\n");
 
-	Output[0] = '\0';
+	if (Invalid_Data_Found == 1) {
+		printf("Invalid Data Found, Invalid characters marked as ""#""\n\n");
+		printf("%s\n\n", Output);
+		printf("Exiting...");
+	}
 
-	Output_ptr = Print_Output(Active_TLV_Block, Output_ptr);
-
-	printf("%s", Output);
+	else {
+		Output[0] = '\0';
+		Output = Print_Output(Active_TLV_Block, Output);
+		printf("%s", Output);
+	}
 
 	free(source_file_arr);
 	fclose(source_file_fp);
